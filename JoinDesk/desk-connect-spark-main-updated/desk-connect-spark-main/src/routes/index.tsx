@@ -10,20 +10,58 @@ import { deskFromApi, type Desk, type DeskApiRow } from "@/lib/joindesk";
 import { loginWithGoogle, logout, restoreSession, type AppUser } from "@/lib/auth";
 import { api, ApiError } from "@/lib/api";
 
+const PAGE_TITLE = "JoinDesk — Study & Work With Strangers Online | Find a Study Partner";
+const PAGE_DESCRIPTION =
+  "Free virtual desks where students, researchers, travelers, and professionals study or work alongside strangers in real time over Google Meet. Find a study partner or accountability buddy — no signup friction, no downloads.";
+
+const FAQ_ITEMS = [
+  {
+    question: "What is JoinDesk?",
+    answer:
+      "JoinDesk is a free platform where you can study or work alongside strangers online. You join a virtual 'desk' — a live Google Meet session where everyone focuses quietly together, like sitting at the same table in a library or co-working space.",
+  },
+  {
+    question: "Is it free to study with strangers on JoinDesk?",
+    answer:
+      "Yes. JoinDesk is completely free to use. Sign in with Google, browse open desks, and join or create one in seconds.",
+  },
+  {
+    question: "Who uses JoinDesk?",
+    answer:
+      "Students preparing for exams, researchers who want to work alongside peers, remote professionals looking for accountability, travelers who want company while working from a new city, and anyone who focuses better with other people around.",
+  },
+  {
+    question: "Do I need to download anything to join a study room?",
+    answer:
+      "No. JoinDesk runs entirely in your browser and connects you to a Google Meet call — there's nothing to install.",
+  },
+  {
+    question: "How long do desks stay open?",
+    answer:
+      "Each desk automatically expires after 3 hours, so the list you browse always shows people who are actively online right now, not stale sessions.",
+  },
+];
+
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "JoinDesk — Find your focus. Join a desk." },
+      { title: PAGE_TITLE },
+      { name: "description", content: PAGE_DESCRIPTION },
+      { property: "og:title", content: PAGE_TITLE },
+      { property: "og:description", content: PAGE_DESCRIPTION },
+    ],
+    scripts: [
       {
-        name: "description",
-        content:
-          "Discover virtual focus desks, connect via Google Meet, and get things done silently alongside the right people.",
-      },
-      { property: "og:title", content: "JoinDesk — Find your focus. Join a desk." },
-      {
-        property: "og:description",
-        content:
-          "Discover virtual focus desks, connect via Google Meet, and work silently alongside the right people.",
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: FAQ_ITEMS.map((item) => ({
+            "@type": "Question",
+            name: item.question,
+            acceptedAnswer: { "@type": "Answer", text: item.answer },
+          })),
+        }),
       },
     ],
   }),
@@ -141,7 +179,7 @@ function Index() {
             onCreate={() => setIsCreateModalOpen(true)}
           />
         ) : (
-          <LandingSection onLogin={handleLogin} />
+          <LandingSection onLogin={handleLogin} faqItems={FAQ_ITEMS} />
         )}
       </main>
 

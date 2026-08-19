@@ -73,19 +73,41 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   );
 }
 
+// Change this once the domain is live — every canonical/OG URL below is built from it.
+const SITE_URL = "https://acetalk.in";
+const SITE_NAME = "JoinDesk";
+const DEFAULT_TITLE = "JoinDesk — Study & Work With Strangers Online";
+const DEFAULT_DESCRIPTION =
+  "Join free virtual desks and study or work alongside strangers in real time. Built for students, researchers, travelers, and professionals who want a real accountability partner — no downloads, just Google login and go.";
+
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: DEFAULT_TITLE },
+      { name: "description", content: DEFAULT_DESCRIPTION },
+      {
+        name: "keywords",
+        content:
+          "study with strangers, online study room, study with people online, find a study partner, virtual coworking, research partner finder, accountability partner online, study buddy app, silent coworking",
+      },
+      { name: "author", content: SITE_NAME },
+      { name: "robots", content: "index, follow" },
+      { name: "theme-color", content: "#0f0f14" },
+
+      { property: "og:site_name", content: SITE_NAME },
+      { property: "og:title", content: DEFAULT_TITLE },
+      { property: "og:description", content: DEFAULT_DESCRIPTION },
       { property: "og:type", content: "website" },
+      { property: "og:url", content: SITE_URL },
+      { property: "og:image", content: `${SITE_URL}/og-image.png` },
+      { property: "og:locale", content: "en_US" },
+
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: DEFAULT_TITLE },
+      { name: "twitter:description", content: DEFAULT_DESCRIPTION },
+      { name: "twitter:image", content: `${SITE_URL}/og-image.png` },
     ],
     links: [
       {
@@ -99,6 +121,23 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         href: "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap",
       },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "manifest", href: "/site.webmanifest" },
+      { rel: "canonical", href: SITE_URL },
+    ],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "WebApplication",
+          name: SITE_NAME,
+          url: SITE_URL,
+          description: DEFAULT_DESCRIPTION,
+          applicationCategory: "EducationApplication",
+          operatingSystem: "Any (Web)",
+          offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+        }),
+      },
     ],
   }),
   shellComponent: RootShell,
