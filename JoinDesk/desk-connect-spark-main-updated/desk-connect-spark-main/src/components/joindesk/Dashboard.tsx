@@ -18,11 +18,11 @@ export function Dashboard({ desks, loading, activeTopic, onTopicChange, onJoin, 
       <div className="relative">
         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Active desks</h1>
         <p className="mt-1.5 text-sm text-muted-foreground">
-          Pick a room, agree to the house rules, and get straight to work.
+          Pick a desk, agree to the desk rules, and get straight to work.
         </p>
 
         <div className="mt-6 flex flex-wrap gap-2">
-          {topics.map((t) => {
+          {/* {topics.map((t) => {
             const active = t === activeTopic;
             return (
               <button
@@ -38,7 +38,7 @@ export function Dashboard({ desks, loading, activeTopic, onTopicChange, onJoin, 
                 {t}
               </button>
             );
-          })}
+          })} */}
         </div>
 
         <div className="mt-8">

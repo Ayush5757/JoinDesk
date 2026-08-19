@@ -45,7 +45,7 @@ export function CreateDeskModal({
     <Modal open={open} onClose={handleClose}>
       <h2 className="pr-8 text-xl font-bold tracking-tight">Create a Focus Desk</h2>
       <p className="mt-1.5 text-sm text-muted-foreground">
-        Launch a new room for others to discover and join your Google Meet.
+        Launch a new desk for others to discover and join your Google Meet.
       </p>
 
       <div className="mt-6 space-y-4">
@@ -54,7 +54,7 @@ export function CreateDeskModal({
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="e.g., DSA Problem Solving & LeetCode"
+            placeholder="e.g., Anatomy & Pharmacology or Reactjs Coding"
             className={"mt-1.5 " + field}
           />
         </div>
