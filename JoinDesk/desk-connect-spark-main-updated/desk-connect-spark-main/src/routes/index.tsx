@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Navbar } from "@/components/joindesk/Navbar";
 import { LandingSection } from "@/components/joindesk/LandingSection";
@@ -73,12 +73,16 @@ function Index() {
   const [checkingSession, setCheckingSession] = useState(true);
   const [desks, setDesks] = useState<Desk[]>([]);
   const [loadingDesks, setLoadingDesks] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [offset, setOffset] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTopic, setActiveTopic] = useState("All Desks");
   const [selectedDesk, setSelectedDesk] = useState<Desk | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
 
+  const PAGE_SIZE = 15;
   const isLoggedIn = !!user;
 
   // Restore session (if any) on first load.
@@ -88,32 +92,55 @@ function Index() {
       .finally(() => setCheckingSession(false));
   }, []);
 
-  const loadDesks = async () => {
-    setLoadingDesks(true);
+  // reset = true  -> fresh search/topic change, start again from offset 0
+  // reset = false -> "load 15 more" triggered by scrolling to the bottom
+  const loadDesks = async (opts: { reset: boolean; fromOffset: number }) => {
+    const { reset, fromOffset } = opts;
+    if (reset) setLoadingDesks(true);
+    else setLoadingMore(true);
+
     try {
-      const { desks: rows } = await api.get<{ desks: DeskApiRow[] }>("/api/desks");
-      setDesks(rows.map(deskFromApi));
+      const params = new URLSearchParams();
+      params.set("limit", String(PAGE_SIZE));
+      params.set("offset", String(fromOffset));
+      if (searchQuery.trim()) params.set("search", searchQuery.trim());
+      if (activeTopic !== "All Desks") params.set("topic", activeTopic);
+
+      const { desks: rows, hasMore: more } = await api.get<{
+        desks: DeskApiRow[];
+        hasMore: boolean;
+      }>(`/api/desks?${params.toString()}`);
+
+      const mapped = rows.map(deskFromApi);
+      setDesks((prev) => (reset ? mapped : [...prev, ...mapped]));
+      setHasMore(more);
+      setOffset(fromOffset + mapped.length);
     } catch (err) {
       toast.error("Couldn't load desks. Is the backend running?");
     } finally {
       setLoadingDesks(false);
+      setLoadingMore(false);
     }
   };
 
-  // Fetch desks once the user is logged in.
+  // Fetch desks once logged in, and re-fetch from the backend whenever the
+  // search text or topic changes (debounced so we don't call the API on
+  // every keystroke). Always resets back to the first page of 15.
   useEffect(() => {
-    if (isLoggedIn) loadDesks();
-  }, [isLoggedIn]);
+    if (!isLoggedIn) return;
+    const delay = searchQuery ? 350 : 0;
+    const handle = setTimeout(() => {
+      loadDesks({ reset: true, fromOffset: 0 });
+    }, delay);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoggedIn, searchQuery, activeTopic]);
 
-  const visibleDesks = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    return desks.filter((d) => {
-      const matchesTopic = activeTopic === "All Desks" || d.topic === activeTopic;
-      const matchesQuery =
-        !q || d.title.toLowerCase().includes(q) || d.description.toLowerCase().includes(q);
-      return matchesTopic && matchesQuery;
-    });
-  }, [desks, searchQuery, activeTopic]);
+  // Called when the user scrolls to the bottom of the desk grid.
+  const loadMore = () => {
+    if (loadingDesks || loadingMore || !hasMore) return;
+    loadDesks({ reset: false, fromOffset: offset });
+  };
 
   const handleLogin = async () => {
     try {
@@ -129,6 +156,8 @@ function Index() {
     logout();
     setUser(null);
     setDesks([]);
+    setOffset(0);
+    setHasMore(true);
   };
 
   const handleCreate = async (input: NewDeskInput) => {
@@ -140,6 +169,7 @@ function Index() {
         topic: activeTopic === "All Desks" ? "Research" : activeTopic,
       });
       setDesks((prev) => [deskFromApi(desk), ...prev]);
+      setOffset((prev) => prev + 1);
       setIsCreateModalOpen(false);
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Failed to create desk.";
@@ -171,8 +201,11 @@ function Index() {
       <main>
         {isLoggedIn ? (
           <Dashboard
-            desks={visibleDesks}
+            desks={desks}
             loading={loadingDesks}
+            loadingMore={loadingMore}
+            hasMore={hasMore}
+            onLoadMore={loadMore}
             activeTopic={activeTopic}
             onTopicChange={setActiveTopic}
             onJoin={openJoin}

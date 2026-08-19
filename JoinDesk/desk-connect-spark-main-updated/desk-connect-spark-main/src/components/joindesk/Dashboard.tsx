@@ -1,17 +1,53 @@
+import { useEffect, useRef } from "react";
 import { DeskCard } from "./DeskCard";
 import { EmptyState } from "./EmptyState";
-import { topics, type Desk } from "@/lib/joindesk";
+import { type Desk } from "@/lib/joindesk";
 
 type Props = {
   desks: Desk[];
   loading?: boolean;
+  loadingMore?: boolean;
+  hasMore?: boolean;
+  onLoadMore?: () => void;
   activeTopic: string;
   onTopicChange: (t: string) => void;
   onJoin: (d: Desk) => void;
   onCreate: () => void;
 };
 
-export function Dashboard({ desks, loading, activeTopic, onTopicChange, onJoin, onCreate }: Props) {
+export function Dashboard({
+  desks,
+  loading,
+  loadingMore,
+  hasMore,
+  onLoadMore,
+  activeTopic,
+  onTopicChange,
+  onJoin,
+  onCreate,
+}: Props) {
+  // Invisible marker at the bottom of the grid. When it scrolls into view,
+  // we ask the parent (routes/index.tsx) to fetch the next 15 desks.
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!onLoadMore || !hasMore) return;
+    const node = sentinelRef.current;
+    if (!node) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          onLoadMore();
+        }
+      },
+      { rootMargin: "250px" } // start loading a bit before the user hits the bottom
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [onLoadMore, hasMore, desks.length]);
+
   return (
     <section className="relative mx-auto max-w-6xl px-4 py-10">
       <div className="pointer-events-none absolute -top-28 right-0 h-72 w-72 rounded-full bg-aurora blur-3xl" />
@@ -47,11 +83,27 @@ export function Dashboard({ desks, loading, activeTopic, onTopicChange, onJoin, 
           ) : desks.length === 0 ? (
             <EmptyState onCreate={onCreate} />
           ) : (
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {desks.map((d) => (
-                <DeskCard key={d.id} desk={d} onJoin={onJoin} />
-              ))}
-            </div>
+            <>
+              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                {desks.map((d) => (
+                  <DeskCard key={d.id} desk={d} onJoin={onJoin} />
+                ))}
+              </div>
+
+              {/* Scroll sentinel — fetches the next 15 desks when it enters view */}
+              <div ref={sentinelRef} className="h-1" />
+
+              {loadingMore && (
+                <p className="mt-6 text-center text-sm text-muted-foreground">
+                  Loading more desks…
+                </p>
+              )}
+              {!hasMore && (
+                <p className="mt-6 text-center text-xs text-muted-foreground">
+                  You've reached the end — that's all the active desks right now.
+                </p>
+              )}
+            </>
           )}
         </div>
       </div>
