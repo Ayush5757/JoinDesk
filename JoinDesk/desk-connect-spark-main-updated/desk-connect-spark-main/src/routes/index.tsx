@@ -38,7 +38,7 @@ const FAQ_ITEMS = [
   {
     question: "How long do desks stay open?",
     answer:
-      "Each desk automatically expires after 3 hours, so the list you browse always shows people who are actively online right now, not stale sessions.",
+      "Each desk automatically expires after 15 days, so the list you browse always shows people who are actively online right now, not stale sessions.",
   },
 ];
 
@@ -217,7 +217,7 @@ function Index() {
       </main>
 
       <footer className="border-t border-border/60 py-8 text-center text-xs text-muted-foreground">
-        JoinDesk — desks auto-expire after 3 hours to keep listings fresh.
+        JoinDesk — desks auto-expire after 15 days to keep listings fresh.
       </footer>
 
       <CreateDeskModal

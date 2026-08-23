@@ -29,7 +29,7 @@ export function JoinDeskModal({
     <Modal open={open} onClose={onClose}>
       <span className="inline-flex items-center gap-2 rounded-full bg-success-soft px-2.5 py-1 text-[11px] font-medium text-success">
         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" />
-        Active Desk (3h max)
+        Active Desk (15d max)
       </span>
       <h2 className="mt-3 pr-8 text-xl font-bold leading-snug tracking-tight">{desk.title}</h2>
       <p className="mt-2 text-sm leading-relaxed text-muted-foreground">

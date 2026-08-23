@@ -119,5 +119,8 @@ export function relativeTime(createdAt: number) {
   if (mins < 1) return "Created just now";
   if (mins < 60) return `Created ${mins}m ago`;
   const hours = Math.floor(mins / 60);
-  return `Created ${hours}h ${mins % 60}m ago`;
+  if (hours < 24) return `Created ${hours}h ${mins % 60}m ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 15) return `Created ${days}d ${hours % 24}h ago`;
+  return `Created ${days}d ago`;
 }

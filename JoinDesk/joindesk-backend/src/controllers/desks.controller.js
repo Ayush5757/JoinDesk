@@ -1,7 +1,7 @@
 import { supabaseAdmin } from "../config/supabase.js";
 
 const MEET_LINK_REGEX = /^https?:\/\/(meet\.google\.com|.+)\/.+/i;
-const DESK_LIFESPAN_HOURS = 3;
+const DESK_LIFESPAN_DAYS = 15;
 
 /**
  * POST /api/desks
@@ -59,7 +59,7 @@ export async function createDesk(req, res) {
 
 /**
  * GET /api/desks
- * Public. Returns active desks (created within the last 3 hours), newest first.
+ * Public. Returns active desks (created within the last 15 days), newest first.
  * Desks are not tracked for membership — the frontend simply reads
  * google_meet_link from the returned rows and opens it directly.
  *
@@ -71,7 +71,9 @@ export async function createDesk(req, res) {
  */
 export async function getDesks(req, res) {
   try {
-    const cutoff = new Date(Date.now() - DESK_LIFESPAN_HOURS * 60 * 60 * 1000).toISOString();
+    const cutoff = new Date(
+      Date.now() - DESK_LIFESPAN_DAYS * 24 * 60 * 60 * 1000
+    ).toISOString();
 
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 15, 1), 50);
     const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);

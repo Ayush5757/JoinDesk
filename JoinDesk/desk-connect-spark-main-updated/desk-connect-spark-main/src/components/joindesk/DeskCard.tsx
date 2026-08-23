@@ -21,7 +21,7 @@ export function DeskCard({ desk, onJoin }: { desk: Desk; onJoin: (d: Desk) => vo
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-70" />
           <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
         </span>
-        Active Desk (3h max)
+        Active Desk (15d max)
       </span>
 
       <h3 className="mt-3 text-base font-semibold leading-snug tracking-tight">{desk.title}</h3>

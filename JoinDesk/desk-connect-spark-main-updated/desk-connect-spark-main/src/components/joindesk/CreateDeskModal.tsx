@@ -85,8 +85,8 @@ export function CreateDeskModal({
       <div className="mt-5 flex gap-3 rounded-2xl bg-info-soft p-4">
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-info" />
         <p className="text-xs leading-relaxed text-info">
-          Note: This desk stays active for 3 hours to keep the platform fresh and clutter-free. Ensure
-          your Google Meet link is active!
+          Note: This desk stays active for 15 days to keep the platform fresh and clutter-free.
+          Ensure your Google Meet link is active!
         </p>
       </div>
 

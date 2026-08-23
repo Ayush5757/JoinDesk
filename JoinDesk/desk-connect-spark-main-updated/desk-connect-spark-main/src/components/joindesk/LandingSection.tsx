@@ -17,7 +17,7 @@ import { initialDesks } from "@/lib/joindesk";
 const features = [
   { icon: Target, title: "Topic Discovery", copy: "Find focused study or work spaces instantly." },
   { icon: Link2, title: "Direct Meet Access", copy: "One-click redirect to Google Meet rooms." },
-  { icon: Timer, title: "Fresh Desks", copy: "Automated 3-hour desk lifespan keeps listings active." },
+  { icon: Timer, title: "Fresh Desks", copy: "Automated 15-day desk lifespan keeps listings active." },
 ];
 
 // Who actually shows up looking for a desk — kept specific on purpose so it
@@ -105,7 +105,7 @@ export function LandingSection({
               Continue with Google
             </button>
             <p className="mt-3 text-xs text-muted-foreground">
-              No setup. Your desk disappears after 3 hours.
+              No setup. Your desk disappears after 15 days.
             </p>
 
             <div className="mt-10 grid gap-3 sm:grid-cols-3">
