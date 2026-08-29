@@ -79,6 +79,19 @@ export function CreateDeskModal({
               className={field + " pl-11"}
             />
           </div>
+          <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+            Don't have a link yet? Go to{" "}
+            <a
+              href="https://meet.google.com/landing"
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium text-primary underline underline-offset-2"
+            >
+              meet.google.com
+            </a>
+            , click <span className="font-medium text-foreground">"New meeting" → "Start an instant meeting"</span>,
+            then paste that link here.
+          </p>
         </div>
       </div>
 

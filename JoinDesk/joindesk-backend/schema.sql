@@ -38,6 +38,57 @@ create table if not exists public.desks (
 );
 
 create index if not exists desks_created_at_idx on public.desks (created_at desc);
+create index if not exists desks_creator_id_idx on public.desks (creator_id);
+
+-- =========================
+-- desk_joins
+-- =========================
+-- Records every time a user clicks "Join via Google Meet" on a desk. This
+-- powers the "who joined my desk" list on the profile page (View popup),
+-- and is the pool of users a desk creator can mark as "Special".
+create table if not exists public.desk_joins (
+  id uuid primary key default gen_random_uuid(),
+  desk_id uuid not null references public.desks (id) on delete cascade,
+  user_id uuid not null references public.users (id) on delete cascade,
+  joined_at timestamptz not null default now(),
+  unique (desk_id, user_id)
+);
+
+create index if not exists desk_joins_desk_id_idx on public.desk_joins (desk_id);
+create index if not exists desk_joins_user_id_idx on public.desk_joins (user_id);
+
+-- =========================
+-- user_blocks
+-- =========================
+-- blocker_id blocks blocked_id. Desks created by blocked-by users are
+-- filtered out of the blocked user's dashboard/search server-side.
+create table if not exists public.user_blocks (
+  id uuid primary key default gen_random_uuid(),
+  blocker_id uuid not null references public.users (id) on delete cascade,
+  blocked_id uuid not null references public.users (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (blocker_id, blocked_id),
+  constraint user_blocks_no_self_block check (blocker_id <> blocked_id)
+);
+
+create index if not exists user_blocks_blocker_idx on public.user_blocks (blocker_id);
+create index if not exists user_blocks_blocked_idx on public.user_blocks (blocked_id);
+
+-- =========================
+-- special_users
+-- =========================
+-- owner_id (a desk creator) marks special_user_id as "Special". Every time
+-- owner_id creates a new desk, everyone in this list gets an email.
+create table if not exists public.special_users (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references public.users (id) on delete cascade,
+  special_user_id uuid not null references public.users (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (owner_id, special_user_id),
+  constraint special_users_no_self_special check (owner_id <> special_user_id)
+);
+
+create index if not exists special_users_owner_idx on public.special_users (owner_id);
 
 -- =========================
 -- Row Level Security

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Check, Video } from "lucide-react";
 import { Modal } from "./Modal";
 import { relativeTime, type Desk } from "@/lib/joindesk";
+import { recordDeskJoin } from "@/lib/users";
 
 export function JoinDeskModal({
   open,
@@ -21,6 +22,9 @@ export function JoinDeskModal({
   if (!desk) return null;
 
   const join = () => {
+    // Fire-and-forget: recording the join must never block or fail the
+    // actual redirect into the Meet call.
+    recordDeskJoin(desk.id).catch(() => {});
     window.open(desk.meetLink, "_blank");
     onClose();
   };

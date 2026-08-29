@@ -6,6 +6,7 @@ import { LandingSection } from "@/components/joindesk/LandingSection";
 import { Dashboard } from "@/components/joindesk/Dashboard";
 import { CreateDeskModal, type NewDeskInput } from "@/components/joindesk/CreateDeskModal";
 import { JoinDeskModal } from "@/components/joindesk/JoinDeskModal";
+import { JoinersModal } from "@/components/joindesk/JoinersModal";
 import { deskFromApi, type Desk, type DeskApiRow } from "@/lib/joindesk";
 import { loginWithGoogle, logout, restoreSession, type AppUser } from "@/lib/auth";
 import { api, ApiError } from "@/lib/api";
@@ -81,6 +82,7 @@ function Index() {
   const [selectedDesk, setSelectedDesk] = useState<Desk | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
+  const [viewJoinersDeskId, setViewJoinersDeskId] = useState<string | null>(null);
 
   const PAGE_SIZE = 15;
   const isLoggedIn = !!user;
@@ -210,6 +212,8 @@ function Index() {
             onTopicChange={setActiveTopic}
             onJoin={openJoin}
             onCreate={() => setIsCreateModalOpen(true)}
+            currentUserId={user?.id}
+            onViewJoiners={(d) => setViewJoinersDeskId(d.id)}
           />
         ) : (
           <LandingSection onLogin={handleLogin} faqItems={FAQ_ITEMS} />
@@ -229,6 +233,11 @@ function Index() {
         open={isJoinModalOpen}
         desk={selectedDesk}
         onClose={() => setIsJoinModalOpen(false)}
+      />
+      <JoinersModal
+        open={Boolean(viewJoinersDeskId)}
+        deskId={viewJoinersDeskId}
+        onClose={() => setViewJoinersDeskId(null)}
       />
     </div>
   );

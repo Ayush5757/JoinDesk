@@ -3,6 +3,7 @@ export type Desk = {
   title: string;
   description: string;
   meetLink: string;
+  creatorId: string;
   creatorName: string;
   creatorAvatar: string;
   createdAt: number;
@@ -16,6 +17,7 @@ export type DeskApiRow = {
   title: string;
   description: string;
   google_meet_link: string;
+  creator_id: string;
   creator_name: string;
   creator_avatar: string | null;
   created_at: string;
@@ -28,6 +30,7 @@ export function deskFromApi(row: DeskApiRow): Desk {
     title: row.title,
     description: row.description ?? "",
     meetLink: row.google_meet_link,
+    creatorId: row.creator_id,
     creatorName: row.creator_name,
     creatorAvatar: row.creator_avatar ?? "",
     createdAt: new Date(row.created_at).getTime(),
@@ -53,6 +56,7 @@ export const initialDesks: Desk[] = [
     description:
       "Silently refactoring a design system into reusable components. Camera optional, focus mandatory.",
     meetLink: "https://meet.google.com/abc-defg-hij",
+    creatorId: "u_1",
     creatorName: "Priya Nair",
     creatorAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150",
     createdAt: Date.now() - 15 * min,
@@ -64,6 +68,7 @@ export const initialDesks: Desk[] = [
     description:
       "Working through graphs and dynamic programming. We solve for 45 minutes, then discuss approaches for 10.",
     meetLink: "https://meet.google.com/dsa-focus-room",
+    creatorId: "u_2",
     creatorName: "Rohan Verma",
     creatorAvatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150",
     createdAt: Date.now() - 42 * min,
@@ -74,6 +79,7 @@ export const initialDesks: Desk[] = [
     title: "Linear Algebra Revision Before Finals",
     description: "Eigenvalues, vector spaces and transformations. Bring your notes and questions.",
     meetLink: "https://meet.google.com/math-revision",
+    creatorId: "u_3",
     creatorName: "Sara Iqbal",
     creatorAvatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150",
     createdAt: Date.now() - 68 * min,
@@ -85,6 +91,7 @@ export const initialDesks: Desk[] = [
     description:
       "Auto-layout cleanup, spacing tokens and a shared critique at the end of the hour.",
     meetLink: "https://meet.google.com/figma-polish",
+    creatorId: "u_4",
     creatorName: "Daniel Cho",
     creatorAvatar: "https://images.unsplash.com/photo-1531427186611-ecfd6d936c79?w=150",
     createdAt: Date.now() - 5 * min,
@@ -95,6 +102,7 @@ export const initialDesks: Desk[] = [
     title: "Research Paper Reading Club — Transformers",
     description: "Quiet reading of attention-based architectures, notes shared in chat as we go.",
     meetLink: "https://meet.google.com/paper-club",
+    creatorId: "u_5",
     creatorName: "Meera Joshi",
     creatorAvatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150",
     createdAt: Date.now() - 96 * min,
@@ -106,6 +114,7 @@ export const initialDesks: Desk[] = [
     description:
       "Mock questions on hooks, rendering and state. Focused co-working with short check-ins.",
     meetLink: "https://meet.google.com/react-interview",
+    creatorId: "u_6",
     creatorName: "Alex Turner",
     creatorAvatar: "https://images.unsplash.com/photo-1502685104226-ee32379fefbe?w=150",
     createdAt: Date.now() - 27 * min,

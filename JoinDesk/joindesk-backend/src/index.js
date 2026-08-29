@@ -5,6 +5,7 @@ import "dotenv/config";
 
 import authRoutes from "./routes/auth.routes.js";
 import desksRoutes from "./routes/desks.routes.js";
+import usersRoutes from "./routes/users.routes.js";
 
 const app = express();
 
@@ -25,6 +26,7 @@ app.get("/health", (req, res) => res.json({ ok: true }));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/desks", desksRoutes);
+app.use("/api/users", usersRoutes);
 
 // 404
 app.use((req, res) => {

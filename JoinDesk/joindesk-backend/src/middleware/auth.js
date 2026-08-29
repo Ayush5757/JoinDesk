@@ -33,3 +33,30 @@ export function requireAuth(req, res, next) {
     return res.status(401).json({ error: "Invalid or expired session" });
   }
 }
+
+/**
+ * Like requireAuth, but never rejects the request. If a valid bearer token
+ * is present, req.user is populated; otherwise req.user is null and the
+ * request continues as an anonymous visitor.
+ *
+ * Used on routes that are public but behave differently when we know who's
+ * asking — e.g. GET /api/desks needs to hide desks from users the creator
+ * has blocked, but must still work for a logged-out visitor.
+ */
+export function optionalAuth(req, res, next) {
+  const authHeader = req.headers.authorization || "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+
+  if (!token) {
+    req.user = null;
+    return next();
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = { id: decoded.id, email: decoded.email };
+  } catch (err) {
+    req.user = null;
+  }
+  next();
+}
