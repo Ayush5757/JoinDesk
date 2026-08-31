@@ -9,6 +9,7 @@ import { JoinDeskModal } from "@/components/joindesk/JoinDeskModal";
 import { JoinersModal } from "@/components/joindesk/JoinersModal";
 import { deskFromApi, type Desk, type DeskApiRow } from "@/lib/joindesk";
 import { loginWithGoogle, logout, restoreSession, type AppUser } from "@/lib/auth";
+import { enablePushNotifications } from "@/lib/push";
 import { api, ApiError } from "@/lib/api";
 
 const PAGE_TITLE = "JoinDesk — Study & Work With Strangers Online | Find a Study Partner";
@@ -90,7 +91,13 @@ function Index() {
   // Restore session (if any) on first load.
   useEffect(() => {
     restoreSession()
-      .then(setUser)
+      .then((restoredUser) => {
+        setUser(restoredUser);
+        // Best-effort: silently asks for notification permission and
+        // subscribes this device if the user hasn't already. Powers the
+        // free push notifications "Special" users get on new desks.
+        if (restoredUser) enablePushNotifications();
+      })
       .finally(() => setCheckingSession(false));
   }, []);
 
@@ -148,6 +155,9 @@ function Index() {
     try {
       const loggedInUser = await loginWithGoogle();
       setUser(loggedInUser);
+      // Best-effort: shows the native "Allow notifications?" popup and
+      // subscribes this device if granted.
+      enablePushNotifications();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Couldn't sign in with Google.";
       toast.error(message);

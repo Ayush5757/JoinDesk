@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "../config/supabase.js";
-import { notifySpecialUsersOfNewDesk } from "../services/email.js";
+import { notifySpecialUsersOfNewDesk } from "../services/push.js";
 
 const MEET_LINK_REGEX = /^https?:\/\/(meet\.google\.com|.+)\/.+/i;
 const DESK_LIFESPAN_DAYS = 15;
@@ -80,20 +80,32 @@ export async function createDesk(req, res) {
 
 async function notifySpecialUsersOfNewDesk_bestEffort(ownerId, ownerName, desk) {
   try {
-    const { data, error } = await supabaseAdmin
+    // 1. Who has this creator marked "Special"?
+    const { data: specialRows, error: specialError } = await supabaseAdmin
       .from("special_users")
-      .select("users:special_user_id (name, email)")
+      .select("special_user_id")
       .eq("owner_id", ownerId);
 
-    if (error) throw error;
+    if (specialError) throw specialError;
 
-    const recipients = (data || []).map((r) => r.users).filter((u) => u?.email);
-    if (!recipients.length) return;
+    const specialUserIds = (specialRows || []).map((r) => r.special_user_id);
+    if (!specialUserIds.length) return;
+
+    // 2. Which of those people have push notifications enabled on some
+    // device? (A user only has a row here once they've granted browser/
+    // phone notification permission on the frontend — see lib/push.ts.)
+    const { data: subscriptions, error: subsError } = await supabaseAdmin
+      .from("push_subscriptions")
+      .select("endpoint, p256dh, auth")
+      .in("user_id", specialUserIds);
+
+    if (subsError) throw subsError;
+    if (!subscriptions?.length) return;
 
     await notifySpecialUsersOfNewDesk(
       { name: ownerName },
-      { title: desk.title, topic: desk.topic, description: desk.description },
-      recipients
+      { id: desk.id, title: desk.title, topic: desk.topic, description: desk.description },
+      subscriptions
     );
   } catch (err) {
     console.error("notifySpecialUsersOfNewDesk error (non-fatal):", err);

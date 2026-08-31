@@ -91,6 +91,25 @@ create table if not exists public.special_users (
 create index if not exists special_users_owner_idx on public.special_users (owner_id);
 
 -- =========================
+-- push_subscriptions
+-- =========================
+-- Free browser/phone push notifications (Web Push, VAPID-based — no
+-- Firebase, no Google account, no per-message cost, no cap). A user can
+-- have several rows (one per device/browser they've enabled notifications
+-- on). Replaces the old email-based "Special" notification: this is what
+-- POST /api/desks now writes to instead of sending email.
+create table if not exists public.push_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users (id) on delete cascade,
+  endpoint text not null unique,
+  p256dh text not null,
+  auth text not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists push_subscriptions_user_id_idx on public.push_subscriptions (user_id);
+
+-- =========================
 -- Row Level Security
 -- =========================
 -- The backend is the ONLY thing that talks to this database, using the

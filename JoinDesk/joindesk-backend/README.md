@@ -9,7 +9,8 @@ Desks are joinable, blockable, and "Special"-taggable:
 - `user_blocks` lets any user block another; a blocked-by creator's future
   desks disappear from that user's dashboard and search.
 - `special_users` lets a desk creator flag people who've joined their desks
-  as "Special", so they get emailed whenever that creator opens a new one.
+  as "Special", so they get a free push notification whenever that creator
+  opens a new one (see section 8 — this used to be email, now it's Web Push).
 
 See section 5 below for the full API surface, and sections 7–9 for how
 blocking, Special notifications, and avatar uploads work.
@@ -28,8 +29,8 @@ blocking, Special notifications, and avatar uploads work.
 
 1. Create a project at https://supabase.com.
 2. **SQL Editor** -> run `schema.sql` (in this folder). Creates `users`,
-   `desks`, `desk_joins`, `user_blocks`, and `special_users` — no auth
-   tables involved.
+   `desks`, `desk_joins`, `user_blocks`, `special_users`, and
+   `push_subscriptions` — no auth tables involved.
 3. **Project Settings -> API** -> copy:
    - `Project URL` -> `SUPABASE_URL`
    - `service_role` secret -> `SUPABASE_SERVICE_ROLE_KEY` (server only)
@@ -72,7 +73,7 @@ Requires Node 18+ (uses the built-in `fetch`). Server starts on
 | POST   | `/api/auth/google`          | none (verifies Google token itself) | Body: `{ access_token }`. Verifies it with Google, upserts the user, returns `{ token, user }`. |
 | GET    | `/api/auth/me`               | Bearer token | Returns the current user's profile row. |
 | GET    | `/api/desks`                 | optional | Active desks (last 15 days), newest first. If logged in, desks by anyone who has blocked you are excluded. Query: `limit`, `offset`, `search`, `topic`. |
-| POST   | `/api/desks`                 | Bearer token | Creates a desk. Body: `{ title, description?, tags?, google_meet_link, topic? }`. Emails anyone you've marked "Special". |
+| POST   | `/api/desks`                 | Bearer token | Creates a desk. Body: `{ title, description?, tags?, google_meet_link, topic? }`. Push-notifies anyone you've marked "Special" who has notifications enabled. |
 | GET    | `/api/desks/mine`             | Bearer token | All desks *you* created, including expired ones (for your profile page). Query: `limit`, `offset`. |
 | POST   | `/api/desks/:id/join`         | Bearer token | Records that you joined this desk (called when "Join via Google Meet" is clicked). Idempotent. |
 | GET    | `/api/desks/:id/joiners`      | Bearer token, creator only | Everyone who joined this desk. Query: `search`. Each entry includes `isSpecial`/`isBlocked` flags. |
@@ -85,6 +86,9 @@ Requires Node 18+ (uses the built-in `fetch`). Server starts on
 | POST   | `/api/users/:id/special`      | Bearer token | Marks a user "Special" — they must have joined one of your desks. They'll be emailed whenever you create a new desk. |
 | DELETE | `/api/users/:id/special`      | Bearer token | Removes the "Special" mark. |
 | GET    | `/api/users/me/special`       | Bearer token | List of users you've marked "Special". |
+| GET    | `/api/push/vapid-public-key`  | none | Returns `{ publicKey, configured }` — the frontend uses this to subscribe the browser to push. |
+| POST   | `/api/push/subscribe`         | Bearer token | Body: `{ subscription }` (the browser's `PushSubscription.toJSON()`). Saves it against the logged-in user. |
+| POST   | `/api/push/unsubscribe`       | Bearer token | Body: `{ endpoint }`. Removes that device's subscription. |
 
 `Bearer token` = the JWT from the Google sign-in step — the same one the frontend
 stores in `localStorage['auth_token']`.
@@ -127,18 +131,53 @@ Blocking can be done from:
 - The "joiners" popup on your own desk (block someone who joined, right
   from that list).
 
-## 8. "Special" users & email notifications
+## 8. "Special" users & push notifications
 
 A desk creator can mark anyone who has joined one of their desks as
 "Special" (from the joiners popup on their profile page). From then on,
-every new desk they create sends those people an email via
-`src/services/email.js`.
+every new desk they create sends those people a **free push
+notification** (the native browser/phone "you have a notification" popup)
+via `src/services/push.js` — the same technology behind Chrome/Firefox
+site notifications and Android app notifications.
 
-This is intentionally zero-config by default: if `SMTP_HOST` / `SMTP_PORT`
-/ `SMTP_USER` / `SMTP_PASS` aren't set in `.env`, the app doesn't fail —
-it just logs what *would* have been sent to the console. Fill in those four
-vars (any SMTP provider — Gmail app password, SendGrid, Resend's SMTP
-relay, etc.) to start sending real emails, no code changes required.
+This uses the **Web Push API with VAPID keys** — not Firebase, not any
+Google product, and not a paid service of any kind. There is no signup,
+no per-message cost, and no cap on how many people you can notify; you
+just generate a keypair once and paste it into `.env`.
+
+**One-time setup (takes 2 minutes):**
+
+1. In `backend/`, run:
+   ```bash
+   npx web-push generate-vapid-keys
+   ```
+   This prints a `Public Key` and a `Private Key`. It runs entirely on
+   your machine — no account, no website, no external service involved.
+2. Add these to your `.env`:
+   ```
+   VAPID_PUBLIC_KEY=<the public key it printed>
+   VAPID_PRIVATE_KEY=<the private key it printed>
+   VAPID_SUBJECT=mailto:your-email@example.com
+   ```
+   `VAPID_SUBJECT` just needs to be a `mailto:` address or a URL — push
+   services use it to contact you if your server is ever misbehaving.
+3. Restart the backend. That's it.
+
+Like the old email flow, this is zero-config safe by default: if
+`VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` aren't set, `createDesk` doesn't
+fail — it just logs what *would* have been pushed to the console.
+
+**How a user starts receiving notifications:** the frontend automatically
+asks for notification permission right after login (the native
+browser/phone popup) and, if granted, registers a subscription against
+`POST /api/push/subscribe`. Nothing the desk creator or the "Special" user
+needs to configure manually beyond allowing that one permission prompt.
+
+**A note on iOS:** Apple only allows web push to iPhones/iPads if the site
+has been "Added to Home Screen" first (this project's `site.webmanifest`
+already supports that) — a plain Safari tab can't receive push on iOS.
+Android, and desktop Chrome/Firefox/Edge, work in a normal browser tab
+with no extra steps.
 
 ## 9. Avatar uploads
 
