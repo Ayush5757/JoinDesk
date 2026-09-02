@@ -21,6 +21,16 @@ async function getCreatorIdsBlockingUser(userId) {
 }
 
 /**
+ * Ids of every user an admin has platform-blocked. Their desks are hidden
+ * from everyone's dashboard/search, same as expired desks would be.
+ */
+async function getAdminBlockedCreatorIds() {
+  const { data, error } = await supabaseAdmin.from("users").select("id").eq("is_blocked", true);
+  if (error) throw error;
+  return (data || []).map((r) => r.id);
+}
+
+/**
  * POST /api/desks
  * Creates a new desk. Requires auth (requireAuth middleware).
  * Body: { title, description?, tags?, google_meet_link, topic? }
@@ -137,11 +147,16 @@ export async function getDesks(req, res) {
     const search =
       typeof req.query.search === "string" ? req.query.search.trim().replace(/[%,()]/g, "") : "";
 
-    const blockingCreatorIds = await getCreatorIdsBlockingUser(req.user?.id);
+    const [blockingCreatorIds, adminBlockedIds] = await Promise.all([
+      getCreatorIdsBlockingUser(req.user?.id),
+      getAdminBlockedCreatorIds(),
+    ]);
+    const excludedCreatorIds = [...new Set([...blockingCreatorIds, ...adminBlockedIds])];
 
     let query = supabaseAdmin
       .from("desks")
       .select("*", { count: "exact" })
+      .eq("is_special", false) // Special desks live in their own row/page, not the main grid.
       .gte("created_at", cutoff)
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
@@ -152,8 +167,8 @@ export async function getDesks(req, res) {
     if (topic && topic !== "All Desks") {
       query = query.eq("topic", topic);
     }
-    if (blockingCreatorIds.length) {
-      query = query.not("creator_id", "in", `(${blockingCreatorIds.join(",")})`);
+    if (excludedCreatorIds.length) {
+      query = query.not("creator_id", "in", `(${excludedCreatorIds.join(",")})`);
     }
 
     const { data, error, count } = await query;
@@ -167,6 +182,150 @@ export async function getDesks(req, res) {
   } catch (err) {
     console.error("getDesks error:", err);
     return res.status(500).json({ error: "Failed to fetch desks" });
+  }
+}
+
+/**
+ * GET /api/desks/special
+ * "Special" desks: created only from the Admin Panel, never auto-expire
+ * (no 15-day cutoff), and always show a generic "JoinDesk" identity
+ * instead of the admin's real name/avatar (enforced by the admin
+ * controller at creation time, not here). Powers both the horizontal
+ * preview row on the dashboard and the full `/special` page.
+ *
+ * Query params: limit, offset, search (title/description).
+ */
+export async function getSpecialDesks(req, res) {
+  try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 15, 1), 50);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+    const search =
+      typeof req.query.search === "string" ? req.query.search.trim().replace(/[%,()]/g, "") : "";
+
+    let query = supabaseAdmin
+      .from("desks")
+      .select("*", { count: "exact" })
+      .eq("is_special", true)
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (search) {
+      query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
+    }
+
+    const { data, error, count } = await query;
+    if (error) throw error;
+
+    const total = count ?? 0;
+    const hasMore = offset + data.length < total;
+
+    return res.status(200).json({ desks: data, hasMore, total });
+  } catch (err) {
+    console.error("getSpecialDesks error:", err);
+    return res.status(500).json({ error: "Failed to fetch special desks" });
+  }
+}
+
+/**
+ * PATCH /api/desks/:id
+ * Lets a desk's own creator edit it (title/description/topic/meet link) —
+ * this is the "edit from your profile" feature for normal users. An admin
+ * (isAdmin claim on the token, see requireAdmin) may also edit ANY desk
+ * here, which the Admin Panel uses to fix up Special desks. Normal users
+ * can never change `is_special` themselves — that field is stripped
+ * unless the requester is an admin.
+ */
+export async function updateDesk(req, res) {
+  try {
+    const { id } = req.params;
+    const { title, description, google_meet_link, topic, is_special } = req.body;
+
+    const { data: desk, error: fetchError } = await supabaseAdmin
+      .from("desks")
+      .select("id, creator_id")
+      .eq("id", id)
+      .single();
+
+    if (fetchError || !desk) {
+      return res.status(404).json({ error: "Desk not found" });
+    }
+
+    const isAdmin = Boolean(req.user.isAdmin);
+    const isOwner = desk.creator_id === req.user.id;
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ error: "You can only edit your own desks" });
+    }
+
+    const updates = {};
+    if (title !== undefined) {
+      if (!title.trim()) return res.status(400).json({ error: "title is required" });
+      updates.title = title.trim();
+    }
+    if (description !== undefined) updates.description = description?.trim() || "";
+    if (topic !== undefined && topic?.trim()) updates.topic = topic.trim();
+    if (google_meet_link !== undefined) {
+      if (!MEET_LINK_REGEX.test(google_meet_link.trim())) {
+        return res.status(400).json({ error: "A valid google_meet_link is required" });
+      }
+      updates.google_meet_link = google_meet_link.trim();
+    }
+    if (isAdmin && typeof is_special === "boolean") {
+      updates.is_special = is_special;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: "Nothing to update" });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from("desks")
+      .update(updates)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return res.status(200).json({ desk: data });
+  } catch (err) {
+    console.error("updateDesk error:", err);
+    return res.status(500).json({ error: "Failed to update desk" });
+  }
+}
+
+/**
+ * DELETE /api/desks/:id
+ * The creator can delete their own desk; an admin can delete any desk
+ * (used by the Admin Panel to retire a Special desk — nothing else
+ * deletes a Special desk, since they otherwise never expire).
+ */
+export async function deleteDesk(req, res) {
+  try {
+    const { id } = req.params;
+
+    const { data: desk, error: fetchError } = await supabaseAdmin
+      .from("desks")
+      .select("id, creator_id")
+      .eq("id", id)
+      .single();
+
+    if (fetchError || !desk) {
+      return res.status(404).json({ error: "Desk not found" });
+    }
+
+    const isAdmin = Boolean(req.user.isAdmin);
+    const isOwner = desk.creator_id === req.user.id;
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ error: "You can only delete your own desks" });
+    }
+
+    const { error } = await supabaseAdmin.from("desks").delete().eq("id", id);
+    if (error) throw error;
+
+    return res.status(200).json({ deleted: true });
+  } catch (err) {
+    console.error("deleteDesk error:", err);
+    return res.status(500).json({ error: "Failed to delete desk" });
   }
 }
 

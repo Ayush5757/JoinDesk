@@ -97,6 +97,13 @@ export function Navbar({
                     <UserIcon className="h-3.5 w-3.5" />
                     View Profile
                   </Link>
+                  {/* <Link
+                    to="/admin"
+                    onClick={() => setMenuOpen(false)}
+                    className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    Admin
+                  </Link> */}
                   <button
                     onClick={() => {
                       setMenuOpen(false);

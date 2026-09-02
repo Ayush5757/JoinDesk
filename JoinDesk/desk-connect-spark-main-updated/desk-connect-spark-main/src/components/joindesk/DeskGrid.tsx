@@ -12,6 +12,7 @@ type Props = {
   onJoin: (d: Desk) => void;
   currentUserId?: string | null | undefined;
   onViewJoiners?: ((d: Desk) => void) | undefined;
+  onEdit?: ((d: Desk) => void) | undefined;
   emptyState?: React.ReactNode;
 };
 
@@ -29,6 +30,7 @@ export function DeskGrid({
   onJoin,
   currentUserId,
   onViewJoiners,
+  onEdit,
   emptyState,
 }: Props) {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -69,6 +71,7 @@ export function DeskGrid({
             onJoin={onJoin}
             isOwn={Boolean(currentUserId) && d.creatorId === currentUserId}
             onViewJoiners={onViewJoiners}
+            onEdit={onEdit}
           />
         ))}
       </div>

@@ -7,6 +7,7 @@ import authRoutes from "./routes/auth.routes.js";
 import desksRoutes from "./routes/desks.routes.js";
 import usersRoutes from "./routes/users.routes.js";
 import pushRoutes from "./routes/push.routes.js";
+import adminRoutes from "./routes/admin.routes.js";
 
 const app = express();
 
@@ -29,6 +30,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/desks", desksRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/push", pushRoutes);
+app.use("/api/admin", adminRoutes);
 
 // 404
 app.use((req, res) => {

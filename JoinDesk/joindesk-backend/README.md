@@ -188,7 +188,54 @@ Profile pictures are the only editable signup field. To enable uploads:
 2. That's it — `PATCH /api/users/me/avatar` (multipart, field `avatar`)
    uploads the file there and updates the user's `avatar_url`.
 
-## 10. Deploying
+## 10a. Special Desks & the Admin Panel
+
+Two extra things live on top of the MVP: **Special desks** (permanent,
+admin-curated desks with no 15-day expiry and no visible creator identity)
+and a password-gated **Admin Panel** to manage them and to ban abusive
+users platform-wide.
+
+1. Add to `.env`:
+   ```
+   ADMIN_PASSWORD=Asha@0507$$19992003
+   ```
+   If you don't set this, the backend falls back to the same password
+   above, so the feature works immediately — set your own for a real
+   deployment.
+2. Any signed-in Google account that enters this password at `POST
+   /api/admin/unlock` gets a short-lived (12h) admin session token — it is
+   NOT tied to a specific email, matching the "I might log in with a
+   different account and still need the admin panel" requirement.
+3. New endpoints (all under `/api/admin`, require the admin token from
+   step 2 as `Authorization: Bearer <adminToken>`, except `/unlock` which
+   needs a normal login token):
+   - `POST /api/admin/unlock` — body `{ password }` → `{ adminToken }`.
+   - `GET /api/admin/desks` — every desk, Special or not, expired or not.
+     Query: `search`, `special` (`true`/`false`), `limit`, `offset`.
+   - `POST /api/admin/desks` — create a desk. Body: `{ title, description?,
+     google_meet_link, topic?, is_special? }`. When `is_special: true` the
+     desk never expires and shows as "JoinDesk" instead of your name.
+   - `GET /api/admin/users` — search/list users. Query: `search`, `limit`,
+     `offset`. Each row includes `is_blocked`.
+   - `POST /api/admin/users/:id/block` / `POST /api/admin/users/:id/unblock`
+     — platform-wide ban. A blocked user can't log in
+     (`POST /api/auth/google` rejects them) and every other authenticated
+     request 403s with `{ error: "blocked", blocked: true }` immediately,
+     even mid-session — the frontend shows a full "you've been blocked"
+     screen instead of the app.
+   - Editing/deleting any desk (including Special ones) reuses the normal
+     `PATCH /api/desks/:id` and `DELETE /api/desks/:id` routes — send the
+     admin token there instead of a normal session token and you get
+     write access to every desk, not just your own.
+4. Regular users are unaffected: `POST /api/desks` (their normal "Create
+   Desk" button) always creates `is_special: false` desks with the usual
+   15-day lifespan, and they can edit only their own desks via
+   `PATCH /api/desks/:id` with their normal login token.
+5. `GET /api/desks/special` (public) lists Special desks only — no
+   15-day cutoff — for the dashboard's Special Desks row and the `/special`
+   page.
+
+## 10b. Deploying
 
 Any Node 18+ host works (Render, Railway, Fly.io, a VPS...). Set the same
 env vars from `.env.example`, add your deployed frontend origin to both

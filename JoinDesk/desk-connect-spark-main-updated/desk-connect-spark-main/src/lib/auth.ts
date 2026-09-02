@@ -1,4 +1,4 @@
-import { api, AUTH_TOKEN_KEY } from "./api";
+import { api, ApiError, AUTH_TOKEN_KEY } from "./api";
 
 export { AUTH_TOKEN_KEY };
 
@@ -8,6 +8,23 @@ export type AppUser = {
   email: string;
   avatar_url: string | null;
 };
+
+/**
+ * Thrown by loginWithGoogle/restoreSession when the backend reports this
+ * account has been platform-blocked by an admin. The UI should stop
+ * showing the normal app entirely and render a full "you're blocked"
+ * screen instead — see BlockedScreen.tsx.
+ */
+export class BlockedError extends Error {
+  constructor() {
+    super("You have been blocked by the admin.");
+    this.name = "BlockedError";
+  }
+}
+
+function isBlockedApiError(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 403 && err.message === "blocked";
+}
 
 const GOOGLE_CLIENT_ID = import.meta.env["VITE_GOOGLE_CLIENT_ID"] as string;
 const GSI_SCRIPT_SRC = "https://accounts.google.com/gsi/client";
@@ -71,7 +88,7 @@ export async function loginWithGoogle(): Promise<AppUser> {
           localStorage.setItem(AUTH_TOKEN_KEY, token);
           resolve(user);
         } catch (err) {
-          reject(err);
+          reject(isBlockedApiError(err) ? new BlockedError() : err);
         }
       },
     });
@@ -86,7 +103,9 @@ export function logout() {
 
 /**
  * Called on app load to restore a previous session. Validates the stored
- * token against the backend; clears it if it's stale/expired.
+ * token against the backend; clears it if it's stale/expired. Throws
+ * BlockedError (without clearing the token) if an admin has blocked this
+ * account — the caller should render BlockedScreen instead of the app.
  */
 export async function restoreSession(): Promise<AppUser | null> {
   const token = localStorage.getItem(AUTH_TOKEN_KEY);
@@ -95,7 +114,8 @@ export async function restoreSession(): Promise<AppUser | null> {
   try {
     const { user } = await api.get<{ user: AppUser }>("/api/auth/me");
     return user;
-  } catch {
+  } catch (err) {
+    if (isBlockedApiError(err)) throw new BlockedError();
     localStorage.removeItem(AUTH_TOKEN_KEY);
     return null;
   }

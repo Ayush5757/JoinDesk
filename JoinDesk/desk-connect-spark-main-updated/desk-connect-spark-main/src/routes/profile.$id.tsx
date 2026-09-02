@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Navbar } from "@/components/joindesk/Navbar";
 import { ProfileView } from "@/components/joindesk/ProfileView";
-import { loginWithGoogle, logout, restoreSession, type AppUser } from "@/lib/auth";
+import { BlockedScreen } from "@/components/joindesk/BlockedScreen";
+import { loginWithGoogle, logout, restoreSession, BlockedError, type AppUser } from "@/lib/auth";
 
 export const Route = createFileRoute("/profile/$id")({
   head: () => ({
@@ -15,16 +16,24 @@ function ProfilePage() {
   const { id } = Route.useParams();
   const [user, setUser] = useState<AppUser | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
+  const [isBlocked, setIsBlocked] = useState(false);
 
   useEffect(() => {
     restoreSession()
       .then(setUser)
+      .catch((err) => {
+        if (err instanceof BlockedError) setIsBlocked(true);
+      })
       .finally(() => setCheckingSession(false));
   }, []);
 
   const handleLogin = async () => {
-    const loggedInUser = await loginWithGoogle().catch(() => null);
-    if (loggedInUser) setUser(loggedInUser);
+    try {
+      const loggedInUser = await loginWithGoogle();
+      setUser(loggedInUser);
+    } catch (err) {
+      if (err instanceof BlockedError) setIsBlocked(true);
+    }
   };
 
   const handleLogout = () => {
@@ -34,6 +43,10 @@ function ProfilePage() {
 
   if (checkingSession) {
     return <div className="min-h-screen bg-background" />;
+  }
+
+  if (isBlocked) {
+    return <BlockedScreen />;
   }
 
   return (

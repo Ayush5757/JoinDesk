@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, Video } from "lucide-react";
+import { Check, Sparkles, Video } from "lucide-react";
 import { Modal } from "./Modal";
 import { relativeTime, type Desk } from "@/lib/joindesk";
 import { recordDeskJoin } from "@/lib/users";
@@ -31,22 +31,35 @@ export function JoinDeskModal({
 
   return (
     <Modal open={open} onClose={onClose}>
-      <span className="inline-flex items-center gap-2 rounded-full bg-success-soft px-2.5 py-1 text-[11px] font-medium text-success">
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" />
-        Active Desk (15d max)
-      </span>
+      {desk.isSpecial ? (
+        <span className="inline-flex items-center gap-2 rounded-full bg-special-soft px-2.5 py-1 text-[11px] font-medium text-special">
+          <Sparkles className="h-3 w-3" />
+          Special Desk · Always available
+        </span>
+      ) : (
+        <span className="inline-flex items-center gap-2 rounded-full bg-success-soft px-2.5 py-1 text-[11px] font-medium text-success">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" />
+          Active Desk (15d max)
+        </span>
+      )}
       <h2 className="mt-3 pr-8 text-xl font-bold leading-snug tracking-tight">{desk.title}</h2>
       <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
         {desk.description || "No description provided."}
       </p>
 
-      <div className="mt-5 flex items-center gap-3 rounded-2xl border border-border bg-muted/50 p-3">
-        <img src={desk.creatorAvatar} alt={desk.creatorName} className="h-9 w-9 rounded-full object-cover" />
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold">Created by {desk.creatorName}</p>
-          <p className="text-xs text-muted-foreground">{relativeTime(desk.createdAt)}</p>
+      {!desk.isSpecial && (
+        <div className="mt-5 flex items-center gap-3 rounded-2xl border border-border bg-muted/50 p-3">
+          <img
+            src={desk.creatorAvatar}
+            alt={desk.creatorName}
+            className="h-9 w-9 rounded-full object-cover"
+          />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold">Created by {desk.creatorName}</p>
+            <p className="text-xs text-muted-foreground">{relativeTime(desk.createdAt)}</p>
+          </div>
         </div>
-      </div>
+      )}
 
       <button
         onClick={() => setAgreed((a) => !a)}

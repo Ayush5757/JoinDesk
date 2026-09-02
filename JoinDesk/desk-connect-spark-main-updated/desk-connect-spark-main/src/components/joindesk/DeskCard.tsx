@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowUpRight, Users } from "lucide-react";
+import { ArrowUpRight, Pencil, Users } from "lucide-react";
 import { relativeTime, type Desk } from "@/lib/joindesk";
 
 export function DeskCard({
@@ -7,11 +7,13 @@ export function DeskCard({
   onJoin,
   isOwn,
   onViewJoiners,
+  onEdit,
 }: {
   desk: Desk;
   onJoin: (d: Desk) => void;
   isOwn?: boolean | undefined;
   onViewJoiners?: ((d: Desk) => void) | undefined;
+  onEdit?: ((d: Desk) => void) | undefined;
 }) {
   return (
     <article className="group flex flex-col rounded-3xl border border-border bg-card p-5 shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-glow">
@@ -60,6 +62,15 @@ export function DeskCard({
             className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
             <Users className="h-4 w-4" />
+          </button>
+        )}
+        {isOwn && onEdit && (
+          <button
+            onClick={() => onEdit(desk)}
+            title="Edit this desk"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <Pencil className="h-4 w-4" />
           </button>
         )}
       </div>

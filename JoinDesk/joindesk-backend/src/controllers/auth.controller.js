@@ -67,6 +67,12 @@ export async function googleLogin(req, res) {
 
     if (error) throw error;
 
+    // 3b. A user an admin has blocked can't even get a session — send them
+    // straight to the "you're blocked" state instead of a token.
+    if (user.is_blocked) {
+      return res.status(403).json({ error: "blocked", blocked: true });
+    }
+
     // 4. Issue our own session token.
     const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, {
       expiresIn: "30d",

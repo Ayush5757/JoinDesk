@@ -8,6 +8,9 @@ export type Desk = {
   creatorAvatar: string;
   createdAt: number;
   topic: string;
+  // true for admin-curated "Special" desks: no 15-day expiry, and the
+  // creator name/avatar shown is always a generic "JoinDesk" badge.
+  isSpecial: boolean;
 };
 
 // Shape returned by the backend (GET/POST /api/desks), snake_case to match
@@ -22,6 +25,7 @@ export type DeskApiRow = {
   creator_avatar: string | null;
   created_at: string;
   topic: string;
+  is_special?: boolean;
 };
 
 export function deskFromApi(row: DeskApiRow): Desk {
@@ -35,6 +39,7 @@ export function deskFromApi(row: DeskApiRow): Desk {
     creatorAvatar: row.creator_avatar ?? "",
     createdAt: new Date(row.created_at).getTime(),
     topic: row.topic,
+    isSpecial: Boolean(row.is_special),
   };
 }
 
@@ -61,6 +66,7 @@ export const initialDesks: Desk[] = [
     creatorAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150",
     createdAt: Date.now() - 15 * min,
     topic: "ReactJS",
+    isSpecial: false,
   },
   {
     id: "d_2",
@@ -73,6 +79,7 @@ export const initialDesks: Desk[] = [
     creatorAvatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150",
     createdAt: Date.now() - 42 * min,
     topic: "DSA & Coding",
+    isSpecial: false,
   },
   {
     id: "d_3",
@@ -84,6 +91,7 @@ export const initialDesks: Desk[] = [
     creatorAvatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150",
     createdAt: Date.now() - 68 * min,
     topic: "Mathematics",
+    isSpecial: false,
   },
   {
     id: "d_4",
@@ -96,6 +104,7 @@ export const initialDesks: Desk[] = [
     creatorAvatar: "https://images.unsplash.com/photo-1531427186611-ecfd6d936c79?w=150",
     createdAt: Date.now() - 5 * min,
     topic: "Design & Figma",
+    isSpecial: false,
   },
   {
     id: "d_5",
@@ -107,6 +116,7 @@ export const initialDesks: Desk[] = [
     creatorAvatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150",
     createdAt: Date.now() - 96 * min,
     topic: "Research",
+    isSpecial: false,
   },
   {
     id: "d_6",
@@ -119,6 +129,7 @@ export const initialDesks: Desk[] = [
     creatorAvatar: "https://images.unsplash.com/photo-1502685104226-ee32379fefbe?w=150",
     createdAt: Date.now() - 27 * min,
     topic: "ReactJS",
+    isSpecial: false,
   },
 ];
 

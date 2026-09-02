@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { DeskGrid } from "./DeskGrid";
 import { JoinersModal } from "./JoinersModal";
 import { JoinDeskModal } from "./JoinDeskModal";
+import { EditDeskModal, type EditDeskInput } from "./EditDeskModal";
 import {
   getProfile,
   updateAvatar,
@@ -12,6 +13,7 @@ import {
   getUserDesksPage,
   type ProfileResponse,
 } from "@/lib/users";
+import { updateDesk } from "@/lib/desks";
 import { type Desk } from "@/lib/joindesk";
 import { type AppUser } from "@/lib/auth";
 
@@ -39,6 +41,8 @@ export function ProfileView({
   const [viewJoinersDeskId, setViewJoinersDeskId] = useState<string | null>(null);
   const [joinTarget, setJoinTarget] = useState<Desk | null>(null);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<Desk | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const loadProfile = async () => {
     setLoadingProfile(true);
@@ -112,6 +116,14 @@ export function ProfileView({
     } finally {
       setBlockBusy(false);
     }
+  };
+
+  const handleEditSave = async (input: EditDeskInput) => {
+    if (!editTarget) return;
+    const updated = await updateDesk(editTarget.id, input);
+    setDesks((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
+    setIsEditModalOpen(false);
+    toast.success("Desk updated.");
   };
 
   if (loadingProfile) {
@@ -231,6 +243,14 @@ export function ProfileView({
             }}
             currentUserId={currentUser?.id ?? null}
             onViewJoiners={isOwner ? (d) => setViewJoinersDeskId(d.id) : undefined}
+            onEdit={
+              isOwner
+                ? (d) => {
+                    setEditTarget(d);
+                    setIsEditModalOpen(true);
+                  }
+                : undefined
+            }
           />
         </div>
       </div>
@@ -244,6 +264,12 @@ export function ProfileView({
         open={Boolean(viewJoinersDeskId)}
         deskId={viewJoinersDeskId}
         onClose={() => setViewJoinersDeskId(null)}
+      />
+      <EditDeskModal
+        open={isEditModalOpen}
+        desk={editTarget}
+        onClose={() => setIsEditModalOpen(false)}
+        onSave={handleEditSave}
       />
     </div>
   );

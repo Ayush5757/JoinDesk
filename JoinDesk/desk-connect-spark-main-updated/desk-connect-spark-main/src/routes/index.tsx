@@ -7,10 +7,14 @@ import { Dashboard } from "@/components/joindesk/Dashboard";
 import { CreateDeskModal, type NewDeskInput } from "@/components/joindesk/CreateDeskModal";
 import { JoinDeskModal } from "@/components/joindesk/JoinDeskModal";
 import { JoinersModal } from "@/components/joindesk/JoinersModal";
+import { BlockedScreen } from "@/components/joindesk/BlockedScreen";
 import { deskFromApi, type Desk, type DeskApiRow } from "@/lib/joindesk";
-import { loginWithGoogle, logout, restoreSession, type AppUser } from "@/lib/auth";
+import { loginWithGoogle, logout, restoreSession, BlockedError, type AppUser } from "@/lib/auth";
 import { enablePushNotifications } from "@/lib/push";
+import { getSpecialDesksPage } from "@/lib/desks";
 import { api, ApiError } from "@/lib/api";
+
+const SPECIAL_PREVIEW_COUNT = 10;
 
 const PAGE_TITLE = "JoinDesk — Study & Work With Strangers Online | Find a Study Partner";
 const PAGE_DESCRIPTION =
@@ -73,6 +77,7 @@ export const Route = createFileRoute("/")({
 function Index() {
   const [user, setUser] = useState<AppUser | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
+  const [isBlocked, setIsBlocked] = useState(false);
   const [desks, setDesks] = useState<Desk[]>([]);
   const [loadingDesks, setLoadingDesks] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -84,6 +89,8 @@ function Index() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const [viewJoinersDeskId, setViewJoinersDeskId] = useState<string | null>(null);
+  const [specialDesks, setSpecialDesks] = useState<Desk[]>([]);
+  const [loadingSpecial, setLoadingSpecial] = useState(false);
 
   const PAGE_SIZE = 15;
   const isLoggedIn = !!user;
@@ -98,8 +105,25 @@ function Index() {
         // free push notifications "Special" users get on new desks.
         if (restoredUser) enablePushNotifications();
       })
+      .catch((err) => {
+        if (err instanceof BlockedError) setIsBlocked(true);
+      })
       .finally(() => setCheckingSession(false));
   }, []);
+
+  // The horizontal "Special Desks" preview row at the top of the
+  // dashboard — a small, fixed-size slice, independent of the main
+  // paginated desk grid below it.
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    setLoadingSpecial(true);
+    getSpecialDesksPage(SPECIAL_PREVIEW_COUNT, 0)
+      .then(({ desks: rows }) => setSpecialDesks(rows))
+      .catch(() => {
+        /* Non-critical — the dashboard still works without the preview row. */
+      })
+      .finally(() => setLoadingSpecial(false));
+  }, [isLoggedIn]);
 
   // reset = true  -> fresh search/topic change, start again from offset 0
   // reset = false -> "load 15 more" triggered by scrolling to the bottom
@@ -159,6 +183,10 @@ function Index() {
       // subscribes this device if granted.
       enablePushNotifications();
     } catch (err) {
+      if (err instanceof BlockedError) {
+        setIsBlocked(true);
+        return;
+      }
       const message = err instanceof Error ? err.message : "Couldn't sign in with Google.";
       toast.error(message);
     }
@@ -170,6 +198,7 @@ function Index() {
     setDesks([]);
     setOffset(0);
     setHasMore(true);
+    setSpecialDesks([]);
   };
 
   const handleCreate = async (input: NewDeskInput) => {
@@ -198,6 +227,10 @@ function Index() {
     return <div className="min-h-screen bg-background" />;
   }
 
+  if (isBlocked) {
+    return <BlockedScreen />;
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <Navbar
@@ -224,6 +257,8 @@ function Index() {
             onCreate={() => setIsCreateModalOpen(true)}
             currentUserId={user?.id}
             onViewJoiners={(d) => setViewJoinersDeskId(d.id)}
+            specialDesks={specialDesks}
+            loadingSpecial={loadingSpecial}
           />
         ) : (
           <LandingSection onLogin={handleLogin} faqItems={FAQ_ITEMS} />

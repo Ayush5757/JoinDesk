@@ -110,6 +110,27 @@ create table if not exists public.push_subscriptions (
 create index if not exists push_subscriptions_user_id_idx on public.push_subscriptions (user_id);
 
 -- =========================
+-- Feature update: Special Desks + Admin Panel + Platform Block
+-- =========================
+-- All statements below are idempotent (safe to re-run on an existing
+-- database that already has the tables above created).
+--
+-- `desks.is_special`   -> true for desks created from the Admin Panel and
+--                          flagged "Special". These never expire (ignore
+--                          the 15-day cutoff) until an admin deletes them,
+--                          and hide the creator's name/avatar in the UI.
+-- `users.is_blocked`   -> platform-wide ban set by an admin. A blocked
+--                          user cannot log in or use the app at all (this
+--                          is separate from `user_blocks`, which is the
+--                          existing user-to-user block feature).
+alter table public.desks add column if not exists is_special boolean not null default false;
+alter table public.users add column if not exists is_blocked boolean not null default false;
+alter table public.users add column if not exists blocked_at timestamptz;
+
+create index if not exists desks_is_special_idx on public.desks (is_special);
+create index if not exists users_is_blocked_idx on public.users (is_blocked);
+
+-- =========================
 -- Row Level Security
 -- =========================
 -- The backend is the ONLY thing that talks to this database, using the
