@@ -32,8 +32,8 @@ export function CreateDeskModal({
 
   const submit = () => {
     if (!title.trim()) return setError("Please add a topic title for your desk.");
-    if (!/^https?:\/\/(meet\.google\.com|.+)\/.+/i.test(meetLink.trim()))
-      return setError("Enter a valid meeting link, e.g. https://meet.google.com/abc-defg-hij");
+    if (!/^https?:\/\/.+\..+/i.test(meetLink.trim()))
+      return setError("Enter a valid meeting link, e.g. https://meet.google.com/abc-defg-hij or https://zoom.us/j/123456789");
     onCreate({ title: title.trim(), description: description.trim(), meetLink: meetLink.trim() });
     reset();
   };
@@ -45,7 +45,8 @@ export function CreateDeskModal({
     <Modal open={open} onClose={handleClose}>
       <h2 className="pr-8 text-xl font-bold tracking-tight">Create a Focus Desk</h2>
       <p className="mt-1.5 text-sm text-muted-foreground">
-        Launch a new desk for others to discover and join your Google Meet.
+        Launch a new desk for others to discover and join your call — Google Meet, Zoom, Microsoft
+        Teams, or anything else.
       </p>
 
       <div className="mt-6 space-y-4">
@@ -69,28 +70,19 @@ export function CreateDeskModal({
           />
         </div>
         <div>
-          <label className="text-xs font-semibold text-muted-foreground">Google Meet Link *</label>
+          <label className="text-xs font-semibold text-muted-foreground">Meeting Link *</label>
           <div className="relative mt-1.5">
             <LinkIcon className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
               value={meetLink}
               onChange={(e) => setMeetLink(e.target.value)}
-              placeholder="https://meet.google.com/abc-defg-hij"
+              placeholder="https://meet.google.com/abc-defg-hij or https://zoom.us/j/…"
               className={field + " pl-11"}
             />
           </div>
           <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
-            Don't have a link yet? Go to{" "}
-            <a
-              href="https://meet.google.com/landing"
-              target="_blank"
-              rel="noreferrer"
-              className="font-medium text-primary underline underline-offset-2"
-            >
-              meet.google.com
-            </a>
-            , click <span className="font-medium text-foreground">"New meeting" → "Start an instant meeting"</span>,
-            then paste that link here.
+            Paste a link from any platform — Google Meet, Zoom, Microsoft Teams, Skype, Webex, or
+            anything else people can click to join your call.
           </p>
         </div>
       </div>
@@ -99,7 +91,7 @@ export function CreateDeskModal({
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-info" />
         <p className="text-xs leading-relaxed text-info">
           Note: This desk stays active for 15 days to keep the platform fresh and clutter-free.
-          Ensure your Google Meet link is active!
+          Make sure your meeting link is active!
         </p>
       </div>
 

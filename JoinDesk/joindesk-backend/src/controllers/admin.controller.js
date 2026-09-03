@@ -8,7 +8,7 @@ const { JWT_SECRET, ADMIN_PASSWORD } = process.env;
 // in .env for a production deployment.
 const EFFECTIVE_ADMIN_PASSWORD = ADMIN_PASSWORD || "Asha@0507$$19992003";
 
-const MEET_LINK_REGEX = /^https?:\/\/(meet\.google\.com|.+)\/.+/i;
+const MEETING_LINK_REGEX = /^https?:\/\/.+\..+/i; // any platform: Google Meet, Zoom, Teams, etc.
 
 /**
  * POST /api/admin/unlock
@@ -97,8 +97,8 @@ export async function createDesk(req, res) {
     if (!title || !title.trim()) {
       return res.status(400).json({ error: "title is required" });
     }
-    if (!google_meet_link || !MEET_LINK_REGEX.test(google_meet_link.trim())) {
-      return res.status(400).json({ error: "A valid google_meet_link is required" });
+    if (!google_meet_link || !MEETING_LINK_REGEX.test(google_meet_link.trim())) {
+      return res.status(400).json({ error: "A valid meeting link is required" });
     }
 
     const special = Boolean(is_special);
@@ -137,6 +137,46 @@ export async function createDesk(req, res) {
   } catch (err) {
     console.error("admin createDesk error:", err);
     return res.status(500).json({ error: "Failed to create desk" });
+  }
+}
+
+/**
+ * GET /api/admin/feedback
+ * All suggestions and complaints, newest first, with the reporter's and
+ * (for complaints) reported user's name/email attached — so an admin can
+ * review what came in, double-check auto-blocks, or manually block/unblock
+ * from the Users tab based on a pattern of complaints.
+ * Query: type ("suggestion" | "complaint" | omit for all), limit, offset.
+ */
+export async function listFeedback(req, res) {
+  try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 30, 1), 100);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+    const type = req.query.type; // "suggestion" | "complaint" | undefined
+
+    let query = supabaseAdmin
+      .from("feedback")
+      .select(
+        "id, type, message, created_at, reporter:user_id (id, name, email), reported:reported_user_id (id, name, email, is_blocked)",
+        { count: "exact" }
+      )
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (type === "suggestion" || type === "complaint") {
+      query = query.eq("type", type);
+    }
+
+    const { data, error, count } = await query;
+    if (error) throw error;
+
+    const total = count ?? 0;
+    const hasMore = offset + data.length < total;
+
+    return res.status(200).json({ feedback: data, hasMore, total });
+  } catch (err) {
+    console.error("admin listFeedback error:", err);
+    return res.status(500).json({ error: "Failed to fetch feedback" });
   }
 }
 

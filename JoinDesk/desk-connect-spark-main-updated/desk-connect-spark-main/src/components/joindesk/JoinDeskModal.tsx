@@ -84,7 +84,7 @@ export function JoinDeskModal({
         className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-join-gradient px-5 py-3 text-sm font-semibold text-primary-foreground shadow-soft transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-none disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none disabled:hover:scale-100"
       >
         <Video className="h-4 w-4" />
-        Join via Google Meet
+        Join Meeting
       </button>
     </Modal>
   );

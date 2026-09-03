@@ -42,3 +42,14 @@ export async function updateDesk(deskId: string, fields: Partial<EditableDeskFie
 export function deleteDesk(deskId: string) {
   return api.delete<{ deleted: boolean }>(`/api/desks/${deskId}`);
 }
+
+/**
+ * Toggle a desk's visibility on the public dashboard without deleting it.
+ * Only the desk's own creator (or an admin) can do this.
+ */
+export async function setDeskHidden(deskId: string, hidden: boolean) {
+  const { desk } = await api.patch<{ desk: DeskApiRow }>(`/api/desks/${deskId}`, {
+    is_hidden: hidden,
+  });
+  return deskFromApi(desk);
+}

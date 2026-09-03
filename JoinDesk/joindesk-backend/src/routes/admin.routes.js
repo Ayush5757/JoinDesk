@@ -7,6 +7,7 @@ import {
   listUsers,
   blockUserAdmin,
   unblockUserAdmin,
+  listFeedback,
 } from "../controllers/admin.controller.js";
 
 const router = Router();
@@ -24,5 +25,7 @@ router.post("/desks", requireAdmin, createDesk);
 router.get("/users", requireAdmin, listUsers);
 router.post("/users/:id/block", requireAdmin, blockUserAdmin);
 router.post("/users/:id/unblock", requireAdmin, unblockUserAdmin);
+
+router.get("/feedback", requireAdmin, listFeedback);
 
 export default router;

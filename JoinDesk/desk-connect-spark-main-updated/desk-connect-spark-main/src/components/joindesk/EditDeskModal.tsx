@@ -40,8 +40,8 @@ export function EditDeskModal({
 
   const submit = async () => {
     if (!title.trim()) return setError("Please add a topic title for your desk.");
-    if (!/^https?:\/\/(meet\.google\.com|.+)\/.+/i.test(meetLink.trim()))
-      return setError("Enter a valid meeting link, e.g. https://meet.google.com/abc-defg-hij");
+    if (!/^https?:\/\/.+\..+/i.test(meetLink.trim()))
+      return setError("Enter a valid meeting link, e.g. https://meet.google.com/abc-defg-hij or https://zoom.us/j/123456789");
 
     setSaving(true);
     setError("");
@@ -96,7 +96,7 @@ export function EditDeskModal({
           </select>
         </div>
         <div>
-          <label className="text-xs font-semibold text-muted-foreground">Google Meet Link *</label>
+          <label className="text-xs font-semibold text-muted-foreground">Meeting Link *</label>
           <div className="relative mt-1.5">
             <LinkIcon className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input

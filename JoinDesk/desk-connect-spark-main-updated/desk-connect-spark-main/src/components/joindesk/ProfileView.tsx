@@ -13,7 +13,7 @@ import {
   getUserDesksPage,
   type ProfileResponse,
 } from "@/lib/users";
-import { updateDesk } from "@/lib/desks";
+import { updateDesk, deleteDesk, setDeskHidden } from "@/lib/desks";
 import { type Desk } from "@/lib/joindesk";
 import { type AppUser } from "@/lib/auth";
 
@@ -126,6 +126,27 @@ export function ProfileView({
     toast.success("Desk updated.");
   };
 
+  const handleDeleteDesk = async (desk: Desk) => {
+    if (!confirm(`Delete "${desk.title}"? This can't be undone.`)) return;
+    try {
+      await deleteDesk(desk.id);
+      setDesks((prev) => prev.filter((d) => d.id !== desk.id));
+      toast.success("Desk deleted.");
+    } catch {
+      toast.error("Couldn't delete that desk. Try again.");
+    }
+  };
+
+  const handleToggleHide = async (desk: Desk) => {
+    try {
+      const updated = await setDeskHidden(desk.id, !desk.isHidden);
+      setDesks((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
+      toast.success(updated.isHidden ? "Desk hidden from the dashboard." : "Desk is visible again.");
+    } catch {
+      toast.error("That didn't go through. Try again.");
+    }
+  };
+
   if (loadingProfile) {
     return <div className="mx-auto max-w-3xl px-4 py-16 text-sm text-muted-foreground">Loading profile…</div>;
   }
@@ -223,7 +244,7 @@ export function ProfileView({
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
           {isOwner
-            ? "Every desk you've created, including expired ones."
+            ? "Every desk you've created, including expired and hidden ones."
             : "Desks this user currently has open."}
         </p>
 
@@ -251,6 +272,8 @@ export function ProfileView({
                   }
                 : undefined
             }
+            onDelete={isOwner ? handleDeleteDesk : undefined}
+            onToggleHide={isOwner ? handleToggleHide : undefined}
           />
         </div>
       </div>

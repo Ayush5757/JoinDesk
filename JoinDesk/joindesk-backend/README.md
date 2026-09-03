@@ -73,7 +73,7 @@ Requires Node 18+ (uses the built-in `fetch`). Server starts on
 | POST   | `/api/auth/google`          | none (verifies Google token itself) | Body: `{ access_token }`. Verifies it with Google, upserts the user, returns `{ token, user }`. |
 | GET    | `/api/auth/me`               | Bearer token | Returns the current user's profile row. |
 | GET    | `/api/desks`                 | optional | Active desks (last 15 days), newest first. If logged in, desks by anyone who has blocked you are excluded. Query: `limit`, `offset`, `search`, `topic`. |
-| POST   | `/api/desks`                 | Bearer token | Creates a desk. Body: `{ title, description?, tags?, google_meet_link, topic? }`. Push-notifies anyone you've marked "Special" who has notifications enabled. |
+| POST   | `/api/desks`                 | Bearer token | Creates a desk. Body: `{ title, description?, tags?, google_meet_link, topic? }`. `google_meet_link` accepts a link from ANY platform — Google Meet, Zoom, Microsoft Teams, Skype, Webex, etc. — the field name is kept for backward compatibility. Push-notifies anyone you've marked "Special" who has notifications enabled. |
 | GET    | `/api/desks/mine`             | Bearer token | All desks *you* created, including expired ones (for your profile page). Query: `limit`, `offset`. |
 | POST   | `/api/desks/:id/join`         | Bearer token | Records that you joined this desk (called when "Join via Google Meet" is clicked). Idempotent. |
 | GET    | `/api/desks/:id/joiners`      | Bearer token, creator only | Everyone who joined this desk. Query: `search`. Each entry includes `isSpecial`/`isBlocked` flags. |
@@ -234,6 +234,29 @@ users platform-wide.
 5. `GET /api/desks/special` (public) lists Special desks only — no
    15-day cutoff — for the dashboard's Special Desks row and the `/special`
    page.
+6. Any desk creator can hide/unhide their own desk from the public
+   dashboard without deleting it — `PATCH /api/desks/:id` with
+   `{ "is_hidden": true }` (or `false`). A hidden desk stays fully intact
+   (joiners, join link, etc.) and only its creator sees it while hidden.
+
+## 10a-2. Suggestions & Complaints (`/api/feedback`)
+
+Powers the "Suggestions & Complaints" popup on the dashboard.
+
+- `POST /api/feedback` (requires login) — body:
+  `{ type: "suggestion" | "complaint", message, reported_user_id? }`.
+  `reported_user_id` is the target's User ID (visible in the URL of their
+  profile page, `/profile/<id>`) and only applies to complaints.
+- **Auto-block:** once `COMPLAINT_AUTO_BLOCK_THRESHOLD` (env var, default
+  `3`) *different* users have filed a complaint naming the same
+  `reported_user_id`, that account is blocked platform-wide automatically
+  — same effect as an admin blocking them from the Admin Panel. One person
+  spamming complaints about someone doesn't count; it's distinct
+  reporters.
+- `GET /api/admin/feedback` (admin token) — review everything that's come
+  in, with the reporter's and reported user's name/email attached. Query:
+  `type` (`suggestion`/`complaint`), `limit`, `offset`. If an auto-block
+  looks wrong, unblock the person from the Admin Panel's Users tab.
 
 ## 10b. Deploying
 

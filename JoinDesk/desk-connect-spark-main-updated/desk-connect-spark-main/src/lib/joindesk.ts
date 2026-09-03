@@ -11,6 +11,9 @@ export type Desk = {
   // true for admin-curated "Special" desks: no 15-day expiry, and the
   // creator name/avatar shown is always a generic "JoinDesk" badge.
   isSpecial: boolean;
+  // true when the creator has paused/hidden this desk from the public
+  // dashboard without deleting it. Only visible to the creator (and admins).
+  isHidden: boolean;
 };
 
 // Shape returned by the backend (GET/POST /api/desks), snake_case to match
@@ -26,6 +29,7 @@ export type DeskApiRow = {
   created_at: string;
   topic: string;
   is_special?: boolean;
+  is_hidden?: boolean;
 };
 
 export function deskFromApi(row: DeskApiRow): Desk {
@@ -40,6 +44,7 @@ export function deskFromApi(row: DeskApiRow): Desk {
     createdAt: new Date(row.created_at).getTime(),
     topic: row.topic,
     isSpecial: Boolean(row.is_special),
+    isHidden: Boolean(row.is_hidden),
   };
 }
 
@@ -67,6 +72,7 @@ export const initialDesks: Desk[] = [
     createdAt: Date.now() - 15 * min,
     topic: "ReactJS",
     isSpecial: false,
+    isHidden: false,
   },
   {
     id: "d_2",
@@ -80,6 +86,7 @@ export const initialDesks: Desk[] = [
     createdAt: Date.now() - 42 * min,
     topic: "DSA & Coding",
     isSpecial: false,
+    isHidden: false,
   },
   {
     id: "d_3",
@@ -92,6 +99,7 @@ export const initialDesks: Desk[] = [
     createdAt: Date.now() - 68 * min,
     topic: "Mathematics",
     isSpecial: false,
+    isHidden: false,
   },
   {
     id: "d_4",
@@ -105,6 +113,7 @@ export const initialDesks: Desk[] = [
     createdAt: Date.now() - 5 * min,
     topic: "Design & Figma",
     isSpecial: false,
+    isHidden: false,
   },
   {
     id: "d_5",
@@ -117,6 +126,7 @@ export const initialDesks: Desk[] = [
     createdAt: Date.now() - 96 * min,
     topic: "Research",
     isSpecial: false,
+    isHidden: false,
   },
   {
     id: "d_6",
@@ -130,6 +140,7 @@ export const initialDesks: Desk[] = [
     createdAt: Date.now() - 27 * min,
     topic: "ReactJS",
     isSpecial: false,
+    isHidden: false,
   },
 ];
 

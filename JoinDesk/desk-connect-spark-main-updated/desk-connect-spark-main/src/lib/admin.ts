@@ -1,5 +1,6 @@
 import { adminApi } from "./adminApi";
 import { deskFromApi, type Desk, type DeskApiRow } from "./joindesk";
+import { type Joiner } from "./users";
 
 export type AdminUser = {
   id: string;
@@ -104,4 +105,16 @@ export function adminBlockUser(userId: string) {
 
 export function adminUnblockUser(userId: string) {
   return adminApi.post<{ blocked: boolean }>(`/api/admin/users/${userId}/unblock`);
+}
+
+/**
+ * GET /api/desks/:id/joiners, but sent with the ADMIN token — the backend
+ * allows an admin to view the joiners of ANY desk, not just their own, so
+ * an admin can moderate any group from the Admin Panel's Desks tab.
+ */
+export function adminGetDeskJoiners(deskId: string, search = "") {
+  const params = search ? `?search=${encodeURIComponent(search)}` : "";
+  return adminApi.get<{ deskTitle: string; joiners: Joiner[] }>(
+    `/api/desks/${deskId}/joiners${params}`
+  );
 }

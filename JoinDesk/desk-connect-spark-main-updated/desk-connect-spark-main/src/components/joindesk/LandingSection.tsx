@@ -24,7 +24,7 @@ import { initialDesks } from "@/lib/joindesk";
 
 const features = [
   { icon: Target, title: "Topic Discovery", copy: "Find focused study or work spaces instantly." },
-  { icon: Link2, title: "Direct Meet Access", copy: "One-click redirect to Google Meet rooms." },
+  { icon: Link2, title: "Direct Meet Access", copy: "One-click redirect to any meeting link — Meet, Zoom, Teams, and more." },
   { icon: Timer, title: "Fresh Desks", copy: "Automated 15-day desk lifespan keeps listings active." },
 ];
 
@@ -90,7 +90,7 @@ const steps = [
   },
   {
     title: "Join with Google",
-    copy: "Sign in with your Google account and hop straight into the Google Meet call. No downloads, no extra apps.",
+    copy: "Sign in with your Google account and hop straight into the call — Meet, Zoom, Teams, or whatever the desk creator set up. No downloads, no extra apps.",
   },
   {
     title: "Study or work, together",
@@ -126,7 +126,7 @@ export function LandingSection({
             </h1>
             <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
               JoinDesk connects you with real people for focused study or work sessions — live
-              over Google Meet, camera optional. No group chats, no small talk, no algorithm.
+              over video call, camera optional. No group chats, no small talk, no algorithm.
               Just a quiet room, a shared timer, and other people who are actually doing the work.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-4">

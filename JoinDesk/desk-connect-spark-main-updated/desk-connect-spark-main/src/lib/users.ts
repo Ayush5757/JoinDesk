@@ -24,6 +24,9 @@ export type Joiner = {
   joined_at: string;
   isSpecial: boolean;
   isBlocked: boolean;
+  // Platform-wide ban status (from the Admin Panel) — distinct from
+  // `isBlocked`, which is the desk owner's own personal block list.
+  isPlatformBlocked?: boolean;
 };
 
 export function getProfile(userId: string) {

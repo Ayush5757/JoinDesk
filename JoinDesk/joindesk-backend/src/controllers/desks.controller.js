@@ -1,7 +1,7 @@
 import { supabaseAdmin } from "../config/supabase.js";
 import { notifySpecialUsersOfNewDesk } from "../services/push.js";
 
-const MEET_LINK_REGEX = /^https?:\/\/(meet\.google\.com|.+)\/.+/i;
+const MEETING_LINK_REGEX = /^https?:\/\/.+\..+/i; // any platform: Google Meet, Zoom, Teams, etc.
 const DESK_LIFESPAN_DAYS = 15;
 
 /**
@@ -42,8 +42,8 @@ export async function createDesk(req, res) {
     if (!title || !title.trim()) {
       return res.status(400).json({ error: "title is required" });
     }
-    if (!google_meet_link || !MEET_LINK_REGEX.test(google_meet_link.trim())) {
-      return res.status(400).json({ error: "A valid google_meet_link is required" });
+    if (!google_meet_link || !MEETING_LINK_REGEX.test(google_meet_link.trim())) {
+      return res.status(400).json({ error: "A valid meeting link is required" });
     }
 
     // Look up the creator's profile so the desk carries a display name/avatar
@@ -157,6 +157,7 @@ export async function getDesks(req, res) {
       .from("desks")
       .select("*", { count: "exact" })
       .eq("is_special", false) // Special desks live in their own row/page, not the main grid.
+      .eq("is_hidden", false) // Creator paused/hid it from the public dashboard.
       .gte("created_at", cutoff)
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
@@ -206,6 +207,7 @@ export async function getSpecialDesks(req, res) {
       .from("desks")
       .select("*", { count: "exact" })
       .eq("is_special", true)
+      .eq("is_hidden", false)
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -238,7 +240,7 @@ export async function getSpecialDesks(req, res) {
 export async function updateDesk(req, res) {
   try {
     const { id } = req.params;
-    const { title, description, google_meet_link, topic, is_special } = req.body;
+    const { title, description, google_meet_link, topic, is_special, is_hidden } = req.body;
 
     const { data: desk, error: fetchError } = await supabaseAdmin
       .from("desks")
@@ -264,13 +266,19 @@ export async function updateDesk(req, res) {
     if (description !== undefined) updates.description = description?.trim() || "";
     if (topic !== undefined && topic?.trim()) updates.topic = topic.trim();
     if (google_meet_link !== undefined) {
-      if (!MEET_LINK_REGEX.test(google_meet_link.trim())) {
-        return res.status(400).json({ error: "A valid google_meet_link is required" });
+      if (!MEETING_LINK_REGEX.test(google_meet_link.trim())) {
+        return res.status(400).json({ error: "A valid meeting link is required" });
       }
       updates.google_meet_link = google_meet_link.trim();
     }
     if (isAdmin && typeof is_special === "boolean") {
       updates.is_special = is_special;
+    }
+    // Owner (or admin) can hide/unhide a desk from the public dashboard
+    // without deleting it — e.g. "I already have enough people, pause it
+    // for now."
+    if (typeof is_hidden === "boolean") {
+      updates.is_hidden = is_hidden;
     }
 
     if (Object.keys(updates).length === 0) {
@@ -399,7 +407,7 @@ export async function getUserDesks(req, res) {
       const cutoff = new Date(
         Date.now() - DESK_LIFESPAN_DAYS * 24 * 60 * 60 * 1000
       ).toISOString();
-      query = query.gte("created_at", cutoff);
+      query = query.gte("created_at", cutoff).eq("is_hidden", false);
     }
 
     const { data, error, count } = await query;
@@ -452,8 +460,10 @@ export async function joinDesk(req, res) {
 
 /**
  * GET /api/desks/:id/joiners
- * Only the desk's creator can see this. Returns everyone who has joined,
- * newest first, with an `isSpecial` flag and optional `search` by name/email.
+ * The desk's own creator can always see this. An admin (isAdmin claim on
+ * the token) can also view the joiners of ANY desk — used by the Admin
+ * Panel's "View joiners" action so an admin can moderate any group, not
+ * just their own. Everyone else gets a 403, unchanged.
  */
 export async function getDeskJoiners(req, res) {
   try {
@@ -470,22 +480,29 @@ export async function getDeskJoiners(req, res) {
     if (deskError || !desk) {
       return res.status(404).json({ error: "Desk not found" });
     }
-    if (desk.creator_id !== req.user.id) {
+    const isAdmin = Boolean(req.user.isAdmin);
+    const isCreator = desk.creator_id === req.user.id;
+    if (!isCreator && !isAdmin) {
       return res.status(403).json({ error: "Only the desk creator can view joiners" });
     }
 
     let query = supabaseAdmin
       .from("desk_joins")
-      .select("joined_at, users:user_id (id, name, email, avatar_url)")
+      .select("joined_at, users:user_id (id, name, email, avatar_url, is_blocked)")
       .eq("desk_id", id)
       .order("joined_at", { ascending: false });
 
     const { data, error } = await query;
     if (error) throw error;
 
+    // "Special"/"blocked" here are relative to the desk's OWNER (their own
+    // personal special_users/user_blocks lists) — meaningful when the
+    // creator is viewing their own desk. When an admin views someone
+    // else's desk, these are naturally empty/false; `isPlatformBlocked`
+    // (from users.is_blocked) is the one that matters for admin moderation.
     const [{ data: specialRows }, { data: blockRows }] = await Promise.all([
-      supabaseAdmin.from("special_users").select("special_user_id").eq("owner_id", req.user.id),
-      supabaseAdmin.from("user_blocks").select("blocked_id").eq("blocker_id", req.user.id),
+      supabaseAdmin.from("special_users").select("special_user_id").eq("owner_id", desk.creator_id),
+      supabaseAdmin.from("user_blocks").select("blocked_id").eq("blocker_id", desk.creator_id),
     ]);
     const specialIds = new Set((specialRows || []).map((r) => r.special_user_id));
     const blockedIds = new Set((blockRows || []).map((r) => r.blocked_id));
@@ -493,10 +510,14 @@ export async function getDeskJoiners(req, res) {
     let joiners = (data || [])
       .filter((r) => r.users)
       .map((r) => ({
-        ...r.users,
+        id: r.users.id,
+        name: r.users.name,
+        email: r.users.email,
+        avatar_url: r.users.avatar_url,
         joined_at: r.joined_at,
         isSpecial: specialIds.has(r.users.id),
         isBlocked: blockedIds.has(r.users.id),
+        isPlatformBlocked: Boolean(r.users.is_blocked),
       }));
 
     if (search) {

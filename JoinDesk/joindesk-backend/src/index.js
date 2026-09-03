@@ -8,6 +8,7 @@ import desksRoutes from "./routes/desks.routes.js";
 import usersRoutes from "./routes/users.routes.js";
 import pushRoutes from "./routes/push.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
+import feedbackRoutes from "./routes/feedback.routes.js";
 
 const app = express();
 
@@ -31,6 +32,7 @@ app.use("/api/desks", desksRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/push", pushRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/feedback", feedbackRoutes);
 
 // 404
 app.use((req, res) => {

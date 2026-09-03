@@ -12,10 +12,13 @@ import {
   ShieldCheck,
   LayoutGrid,
   Users as UsersIcon,
+  ExternalLink,
 } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { Navbar } from "@/components/joindesk/Navbar";
 import { BlockedScreen } from "@/components/joindesk/BlockedScreen";
 import { AdminDeskModal, type AdminDeskFormValues } from "@/components/joindesk/AdminDeskModal";
+import { AdminJoinersModal } from "@/components/joindesk/AdminJoinersModal";
 import { loginWithGoogle, logout, restoreSession, BlockedError, type AppUser } from "@/lib/auth";
 import { isAdminUnlocked, unlockAdmin, lockAdmin } from "@/lib/adminAuth";
 import {
@@ -200,6 +203,7 @@ function AdminDesksTab() {
   const [filter, setFilter] = useState<"all" | "true" | "false">("all");
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Desk | null>(null);
+  const [joinersDeskId, setJoinersDeskId] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -318,6 +322,13 @@ function AdminDesksTab() {
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <button
+                  onClick={() => setJoinersDeskId(d.id)}
+                  title="View who joined"
+                  className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  <UsersIcon className="h-4 w-4" />
+                </button>
+                <button
                   onClick={() => {
                     setEditing(d);
                     setModalOpen(true);
@@ -348,6 +359,11 @@ function AdminDesksTab() {
           setEditing(null);
         }}
         onSave={handleSave}
+      />
+      <AdminJoinersModal
+        open={Boolean(joinersDeskId)}
+        deskId={joinersDeskId}
+        onClose={() => setJoinersDeskId(null)}
       />
     </div>
   );
@@ -435,26 +451,37 @@ function AdminUsersTab() {
                   </span>
                 )}
               </div>
-              <button
-                onClick={() => toggleBlock(u)}
-                disabled={busyId === u.id}
-                className={
-                  "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-4 py-2 text-xs font-semibold transition-colors disabled:opacity-60 " +
-                  (u.is_blocked
-                    ? "border-border bg-card hover:bg-muted"
-                    : "border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20")
-                }
-              >
-                {u.is_blocked ? (
-                  <>
-                    <ShieldCheck className="h-3.5 w-3.5" /> Unblock
-                  </>
-                ) : (
-                  <>
-                    <ShieldBan className="h-3.5 w-3.5" /> Block
-                  </>
-                )}
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                <Link
+                  to="/profile/$id"
+                  params={{ id: u.id }}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-4 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" /> View
+                </Link>
+                <button
+                  onClick={() => toggleBlock(u)}
+                  disabled={busyId === u.id}
+                  className={
+                    "inline-flex items-center gap-1.5 rounded-full border px-4 py-2 text-xs font-semibold transition-colors disabled:opacity-60 " +
+                    (u.is_blocked
+                      ? "border-border bg-card hover:bg-muted"
+                      : "border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20")
+                  }
+                >
+                  {u.is_blocked ? (
+                    <>
+                      <ShieldCheck className="h-3.5 w-3.5" /> Unblock
+                    </>
+                  ) : (
+                    <>
+                      <ShieldBan className="h-3.5 w-3.5" /> Block
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           ))
         )}

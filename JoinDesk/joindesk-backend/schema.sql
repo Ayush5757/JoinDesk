@@ -30,7 +30,7 @@ create table if not exists public.desks (
   description text default '',
   tags text[] not null default '{}',
   topic text not null default 'Research',
-  google_meet_link text not null,
+  google_meet_link text not null, -- despite the name, any meeting link works (Zoom, Teams, Meet, etc.) — kept as-is for backward compatibility
   creator_id uuid references public.users (id) on delete cascade,
   creator_name text not null,
   creator_avatar text,
@@ -129,6 +129,34 @@ alter table public.users add column if not exists blocked_at timestamptz;
 
 create index if not exists desks_is_special_idx on public.desks (is_special);
 create index if not exists users_is_blocked_idx on public.users (is_blocked);
+
+-- `desks.is_hidden` -> the desk's own creator can hide it from the public
+-- dashboard/search (e.g. "I already have enough people in this group")
+-- without deleting it. Only the creator can see + toggle it back from
+-- their profile; everyone else simply never sees it while hidden.
+alter table public.desks add column if not exists is_hidden boolean not null default false;
+create index if not exists desks_is_hidden_idx on public.desks (is_hidden);
+
+-- =========================
+-- feedback
+-- =========================
+-- Powers the "Suggestions & Complaints" popup on the dashboard. A
+-- complaint can optionally name another user (reported_user_id) — if
+-- enough DISTINCT users file a complaint naming the same person, that
+-- person is auto-blocked platform-wide (see feedback.controller.js for
+-- the threshold, COMPLAINT_AUTO_BLOCK_THRESHOLD).
+create table if not exists public.feedback (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users (id) on delete cascade,
+  type text not null check (type in ('suggestion', 'complaint')),
+  message text not null,
+  reported_user_id uuid references public.users (id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists feedback_type_idx on public.feedback (type);
+create index if not exists feedback_reported_user_idx on public.feedback (reported_user_id);
+create index if not exists feedback_user_idx on public.feedback (user_id);
 
 -- =========================
 -- Row Level Security
