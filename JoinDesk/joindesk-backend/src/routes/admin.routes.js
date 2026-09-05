@@ -8,6 +8,7 @@ import {
   blockUserAdmin,
   unblockUserAdmin,
   listFeedback,
+  updateFeedbackStatus,
 } from "../controllers/admin.controller.js";
 
 const router = Router();
@@ -27,5 +28,6 @@ router.post("/users/:id/block", requireAdmin, blockUserAdmin);
 router.post("/users/:id/unblock", requireAdmin, unblockUserAdmin);
 
 router.get("/feedback", requireAdmin, listFeedback);
+router.patch("/feedback/:id/status", requireAdmin, updateFeedbackStatus);
 
 export default router;

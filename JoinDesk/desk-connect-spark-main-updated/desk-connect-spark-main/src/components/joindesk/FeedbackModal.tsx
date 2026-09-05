@@ -1,8 +1,19 @@
 import { useEffect, useRef, useState } from "react";
-import { Info, Maximize, Minimize, MessageSquareWarning, Send } from "lucide-react";
+import {
+  Info,
+  Maximize,
+  Minimize,
+  MessageSquareWarning,
+  MessageCircle,
+  Send,
+  X,
+  LayoutGrid,
+  Zap,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Modal } from "./Modal";
-import { submitFeedback, type FeedbackType } from "@/lib/feedback";
+import { submitFeedback, buildWhatsAppLink, type FeedbackType } from "@/lib/feedback";
+import { searchDesksForPicker } from "@/lib/desks";
 import { ApiError } from "@/lib/api";
 
 // Point this at your own hosted video (mp4 URL, or swap the <video> tag
@@ -10,22 +21,36 @@ import { ApiError } from "@/lib/api";
 // by default so the popup still works and looks right before you add one.
 const TUTORIAL_VIDEO_URL = "";
 
+type DeskOption = { id: string; title: string };
+
 export function FeedbackModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const videoWrapperRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const [type, setType] = useState<FeedbackType>("suggestion");
   const [message, setMessage] = useState("");
-  const [reportedUserId, setReportedUserId] = useState("");
+  const [reportedName, setReportedName] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // Desk picker — search-as-you-type against real desks, never free text.
+  const [deskQuery, setDeskQuery] = useState("");
+  const [deskResults, setDeskResults] = useState<DeskOption[]>([]);
+  const [deskLoading, setDeskLoading] = useState(false);
+  const [deskOpen, setDeskOpen] = useState(false);
+  const [selectedDesk, setSelectedDesk] = useState<DeskOption | null>(null);
+  const deskBoxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open) {
       setType("suggestion");
       setMessage("");
-      setReportedUserId("");
+      setReportedName("");
       setError("");
+      setDeskQuery("");
+      setDeskResults([]);
+      setSelectedDesk(null);
+      setDeskOpen(false);
     }
   }, [open]);
 
@@ -34,6 +59,40 @@ export function FeedbackModal({ open, onClose }: { open: boolean; onClose: () =>
     document.addEventListener("fullscreenchange", handleChange);
     return () => document.removeEventListener("fullscreenchange", handleChange);
   }, []);
+
+  // Debounced desk search, only while the picker is open and nothing is
+  // selected yet.
+  useEffect(() => {
+    if (!deskOpen || selectedDesk) return;
+    let cancelled = false;
+    setDeskLoading(true);
+    const handle = setTimeout(async () => {
+      try {
+        const results = await searchDesksForPicker(deskQuery);
+        if (!cancelled) setDeskResults(results);
+      } catch {
+        if (!cancelled) setDeskResults([]);
+      } finally {
+        if (!cancelled) setDeskLoading(false);
+      }
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [deskQuery, deskOpen, selectedDesk]);
+
+  // Close the desk dropdown on outside click.
+  useEffect(() => {
+    if (!deskOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (deskBoxRef.current && !deskBoxRef.current.contains(e.target as Node)) {
+        setDeskOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [deskOpen]);
 
   const toggleFullscreen = () => {
     if (!videoWrapperRef.current) return;
@@ -47,10 +106,20 @@ export function FeedbackModal({ open, onClose }: { open: boolean; onClose: () =>
   const field =
     "w-full rounded-2xl border border-border bg-muted/50 px-4 py-3 text-sm outline-none transition-all placeholder:text-muted-foreground focus:border-primary/50 focus:bg-card focus:shadow-soft";
 
+  const openWhatsApp = () => {
+    const url = buildWhatsAppLink({
+      type,
+      message,
+      reportedName: type === "complaint" ? reportedName : undefined,
+      reportedDeskTitle: type === "complaint" ? selectedDesk?.title : undefined,
+    });
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
   const submit = async () => {
     if (!message.trim()) {
       return setError(
-        type === "complaint" ? "Please describe what happened." : "Please write your suggestion."
+        type === "complaint" ? "Please describe what happened." : "Please write your suggestion.",
       );
     }
     setSubmitting(true);
@@ -59,14 +128,15 @@ export function FeedbackModal({ open, onClose }: { open: boolean; onClose: () =>
       const { autoBlocked } = await submitFeedback({
         type,
         message: message.trim(),
-        reportedUserId: type === "complaint" ? reportedUserId.trim() : undefined,
+        reportedName: type === "complaint" ? reportedName.trim() : undefined,
+        reportedDeskId: type === "complaint" ? selectedDesk?.id : undefined,
       });
       toast.success(
         type === "suggestion"
           ? "Thanks! Your suggestion has been sent."
           : autoBlocked
             ? "Complaint sent — that user has been blocked."
-            : "Complaint sent. Our team will look into it."
+            : "Complaint sent. Our team will look into it.",
       );
       onClose();
     } catch (err) {
@@ -85,17 +155,65 @@ export function FeedbackModal({ open, onClose }: { open: boolean; onClose: () =>
         <h2 className="text-xl font-bold tracking-tight">Suggestions & Complaints</h2>
       </div>
 
-      <div className="mt-4 flex gap-3 rounded-2xl bg-info-soft p-4">
+      {/* Type toggle up top so the WhatsApp message below matches what the
+          person actually wants to send. */}
+      <div className="mt-4">
+        <div className="inline-flex rounded-full border border-border bg-muted/50 p-1">
+          {(["suggestion", "complaint"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setType(t)}
+              className={
+                "rounded-full px-4 py-1.5 text-sm font-semibold capitalize transition-colors " +
+                (type === t ? "bg-card shadow-soft" : "text-muted-foreground hover:text-foreground")
+              }
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* WhatsApp-first CTA — the fastest way to reach us, especially for a
+          complaint that needs an urgent response. */}
+      <div className="mt-4 rounded-2xl border border-[#25D366]/30 bg-[#25D366]/10 p-4">
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#25D366] text-white">
+            <MessageCircle className="h-4.5 w-4.5" />
+          </span>
+          <div className="min-w-0">
+            <p className="flex items-center gap-1.5 text-sm font-bold text-[#128C4A]">
+              <Zap className="h-3.5 w-3.5" /> How We Help You:
+            </p>
+            <p className="mt-0.5 text-xs leading-relaxed text-[#128C4A]/90">
+              If you experience any misbehavior or harassment during desk calls, please message us
+              immediately on WhatsApp for a swift resolution. Alternatively, if you don't mind
+              waiting a bit for a response, you can fill out the form with your details.
+            </p>
+            <p className="mt-0.5 text-xs leading-relaxed text-[#128C4A]/90">
+              1) WhatsApp: Best for instant support.
+            </p>
+            <p className="mt-0.5 text-xs leading-relaxed text-[#128C4A]/90">
+              2) Form Submission: Best if you can wait for a standard reply.
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={openWhatsApp}
+          className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-full bg-[#25D366] px-5 py-2.5 text-sm font-semibold text-white shadow-soft transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98]"
+        >
+          <MessageCircle className="h-4 w-4" /> Message us on WhatsApp
+        </button>
+      </div>
+
+      {/* <div className="mt-4 flex gap-3 rounded-2xl bg-info-soft p-4">
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-info" />
         <p className="text-xs leading-relaxed text-info">
-          Have a suggestion for JoinDesk, or is someone spamming or troubling you in a desk? Pick
-          "Complaint" below and, if it's about a specific person, paste their <b>User ID</b> —
-          you'll find it in the URL when you open their profile page (e.g.{" "}
-          <code className="rounded bg-info/10 px-1 py-0.5">/profile/&lt;their-id&gt;</code>). If
-          enough different people report the same User ID, that account gets blocked
-          automatically.
+          {type === "complaint"
+            ? "Is someone spamming or troubling you in a desk? Tell us their name and which desk it happened in below — none of this is required, but it helps us act fast. If enough different people report the same name and desk, that account gets blocked."
+            : "Have a suggestion for JoinDesk? Tell us what you'd like to see added or changed."}
         </p>
-      </div>
+      </div> */}
 
       <div
         ref={videoWrapperRef}
@@ -117,36 +235,85 @@ export function FeedbackModal({ open, onClose }: { open: boolean; onClose: () =>
         </button>
       </div>
 
-      <div className="mt-5 space-y-4">
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">What is this?</label>
-          <div className="mt-1.5 inline-flex rounded-full border border-border bg-muted/50 p-1">
-            {(["suggestion", "complaint"] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => setType(t)}
-                className={
-                  "rounded-full px-4 py-1.5 text-sm font-semibold capitalize transition-colors " +
-                  (type === t ? "bg-card shadow-soft" : "text-muted-foreground hover:text-foreground")
-                }
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-        </div>
+      <p className="mt-4 text-xs font-semibold text-muted-foreground">
+        Or log it here on the dashboard instead:
+      </p>
 
+      <div className="mt-2 space-y-4">
         {type === "complaint" && (
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground">
-              User ID (optional — leave blank if it's not about a specific person)
-            </label>
-            <input
-              value={reportedUserId}
-              onChange={(e) => setReportedUserId(e.target.value)}
-              placeholder="e.g. 3f2a9c11-8b4d-4e77-9a10-1d2e3f4a5b6c"
-              className={"mt-1.5 " + field}
-            />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">
+                Their name (optional)
+              </label>
+              <input
+                value={reportedName}
+                onChange={(e) => setReportedName(e.target.value)}
+                placeholder="e.g. Rohan"
+                className={"mt-1.5 " + field}
+              />
+            </div>
+
+            <div ref={deskBoxRef} className="relative">
+              <label className="text-xs font-semibold text-muted-foreground">
+                Which desk? (optional)
+              </label>
+              {selectedDesk ? (
+                <div className={"mt-1.5 flex items-center justify-between gap-2 " + field}>
+                  <span className="flex min-w-0 items-center gap-1.5 truncate">
+                    <LayoutGrid className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <span className="truncate">{selectedDesk.title}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedDesk(null);
+                      setDeskQuery("");
+                    }}
+                    className="shrink-0 text-muted-foreground hover:text-foreground"
+                    title="Change desk"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <input
+                    value={deskQuery}
+                    onChange={(e) => setDeskQuery(e.target.value)}
+                    onFocus={() => setDeskOpen(true)}
+                    placeholder="Search desk by title…"
+                    className={"mt-1.5 " + field}
+                  />
+                  {deskOpen && (
+                    <div className="absolute z-10 mt-1.5 max-h-48 w-full overflow-y-auto rounded-2xl border border-border bg-card p-1.5 shadow-soft">
+                      {deskLoading ? (
+                        <p className="px-3 py-2 text-xs text-muted-foreground">Searching…</p>
+                      ) : deskResults.length === 0 ? (
+                        <p className="px-3 py-2 text-xs text-muted-foreground">
+                          No matching desks.
+                        </p>
+                      ) : (
+                        deskResults.map((d) => (
+                          <button
+                            key={d.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedDesk(d);
+                              setDeskOpen(false);
+                            }}
+                            className="flex w-full items-center gap-1.5 truncate rounded-xl px-3 py-2 text-left text-xs font-medium transition-colors hover:bg-muted"
+                          >
+                            <LayoutGrid className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <span className="truncate">{d.title}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         )}
 
@@ -160,7 +327,7 @@ export function FeedbackModal({ open, onClose }: { open: boolean; onClose: () =>
             rows={4}
             placeholder={
               type === "complaint"
-                ? "Describe what this user did and which desk it happened in…"
+                ? "Describe what this person did…"
                 : "Tell us what you'd like to see added or changed…"
             }
             className={"mt-1.5 resize-none " + field}

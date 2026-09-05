@@ -142,22 +142,26 @@ export async function createDesk(req, res) {
 
 /**
  * GET /api/admin/feedback
- * All suggestions and complaints, newest first, with the reporter's and
- * (for complaints) reported user's name/email attached — so an admin can
- * review what came in, double-check auto-blocks, or manually block/unblock
- * from the Users tab based on a pattern of complaints.
- * Query: type ("suggestion" | "complaint" | omit for all), limit, offset.
+ * All suggestions and complaints, newest first, with the reporter's name/
+ * email, the (optional) name of the person a complaint is about, and the
+ * (optional) desk that person was in attached — so an admin can review
+ * what came in, spot a pattern (several different reporters naming the
+ * same person/desk), and manually block from the Users tab.
+ * Query: type ("suggestion" | "complaint" | omit for all),
+ *        status ("pending" | "resolved" | "problem" | omit for all),
+ *        limit, offset.
  */
 export async function listFeedback(req, res) {
   try {
-    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 30, 1), 100);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 15, 1), 100);
     const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
     const type = req.query.type; // "suggestion" | "complaint" | undefined
+    const status = req.query.status; // "pending" | "resolved" | "problem" | undefined
 
     let query = supabaseAdmin
       .from("feedback")
       .select(
-        "id, type, message, created_at, reporter:user_id (id, name, email), reported:reported_user_id (id, name, email, is_blocked)",
+        "id, type, message, status, created_at, reported_name, reporter:user_id (id, name, email), reported_desk:reported_desk_id (id, title)",
         { count: "exact" }
       )
       .order("created_at", { ascending: false })
@@ -165,6 +169,9 @@ export async function listFeedback(req, res) {
 
     if (type === "suggestion" || type === "complaint") {
       query = query.eq("type", type);
+    }
+    if (status === "pending" || status === "resolved" || status === "problem") {
+      query = query.eq("status", status);
     }
 
     const { data, error, count } = await query;
@@ -177,6 +184,45 @@ export async function listFeedback(req, res) {
   } catch (err) {
     console.error("admin listFeedback error:", err);
     return res.status(500).json({ error: "Failed to fetch feedback" });
+  }
+}
+
+/**
+ * PATCH /api/admin/feedback/:id/status
+ * Body: { status: "pending" | "resolved" | "problem" }
+ *
+ * Drives the three-way workflow in the Admin Panel's Feedback tab:
+ * "pending" (Incomplete, the default for anything just submitted),
+ * "resolved" (Complete — admin looked into it and it's done), and
+ * "problem" (admin looked into it but hit a snag — stays out of Complete
+ * until it's fixed, at which point the admin flips it back to resolved).
+ */
+export async function updateFeedbackStatus(req, res) {
+  try {
+    const { id } = req.params;
+    const { status } = req.body || {};
+
+    if (!["pending", "resolved", "problem"].includes(status)) {
+      return res
+        .status(400)
+        .json({ error: "status must be 'pending', 'resolved', or 'problem'" });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from("feedback")
+      .update({ status })
+      .eq("id", id)
+      .select(
+        "id, type, message, status, created_at, reported_name, reporter:user_id (id, name, email), reported_desk:reported_desk_id (id, title)"
+      )
+      .single();
+
+    if (error) throw error;
+
+    return res.status(200).json({ feedback: data });
+  } catch (err) {
+    console.error("admin updateFeedbackStatus error:", err);
+    return res.status(500).json({ error: "Failed to update feedback status" });
   }
 }
 

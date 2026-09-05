@@ -16,6 +16,19 @@ export async function getSpecialDesksPage(limit: number, offset: number, search 
   return { desks: desks.map(deskFromApi) as Desk[], hasMore, total };
 }
 
+/**
+ * Lightweight desk search used by the "which desk was this in?" picker in
+ * the Suggestions & Complaints form — deliberately returns only id + title
+ * (never a free-text field the person can type anything into) so a
+ * complaint can only ever point at a real desk.
+ */
+export async function searchDesksForPicker(query: string) {
+  const params = new URLSearchParams({ limit: "8" });
+  if (query.trim()) params.set("search", query.trim());
+  const { desks } = await api.get<{ desks: DeskApiRow[] }>(`/api/desks?${params.toString()}`);
+  return desks.map((d) => ({ id: d.id, title: d.title }));
+}
+
 export type EditableDeskFields = {
   title: string;
   description: string;

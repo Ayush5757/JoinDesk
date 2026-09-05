@@ -159,6 +159,47 @@ create index if not exists feedback_reported_user_idx on public.feedback (report
 create index if not exists feedback_user_idx on public.feedback (user_id);
 
 -- =========================
+-- Feature update: Admin feedback workflow + name/desk reporting
+-- =========================
+-- `feedback.status`            -> admin workflow state for the Admin Panel's
+--                                  Feedback tab: 'pending' (not looked at
+--                                  yet / "Incomplete"), 'resolved' ("Complete"),
+--                                  or 'problem' (admin looked into it but hit
+--                                  an issue — needs follow-up before it can
+--                                  be marked Complete).
+-- `feedback.reported_name`     -> free-text name of the person being
+--                                  reported in a complaint (optional).
+--                                  Replaces the old `reported_user_id`
+--                                  approach: two people meeting on a call
+--                                  have no way to see each other's JoinDesk
+--                                  User ID, only a name and which desk they
+--                                  were in, so that's what we collect now.
+--                                  `reported_user_id` is left in place for
+--                                  backward compatibility but is no longer
+--                                  written by the frontend.
+-- `feedback.reported_desk_id`  -> which desk the reported person was in,
+--                                  picked from the real desks table (not a
+--                                  free-text field) so this always points at
+--                                  an actual desk.
+alter table public.feedback add column if not exists status text not null default 'pending';
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'feedback_status_check'
+  ) then
+    alter table public.feedback add constraint feedback_status_check
+      check (status in ('pending', 'resolved', 'problem'));
+  end if;
+end $$;
+
+alter table public.feedback add column if not exists reported_name text;
+alter table public.feedback add column if not exists reported_desk_id uuid references public.desks (id) on delete set null;
+
+create index if not exists feedback_status_idx on public.feedback (status);
+create index if not exists feedback_reported_desk_idx on public.feedback (reported_desk_id);
+
+-- =========================
 -- Row Level Security
 -- =========================
 -- The backend is the ONLY thing that talks to this database, using the

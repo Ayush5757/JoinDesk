@@ -2,20 +2,19 @@ import { supabaseAdmin } from "../config/supabase.js";
 
 /**
  * POST /api/feedback
- * Body: { type: "suggestion" | "complaint", message }
+ * Body: { type: "suggestion" | "complaint", message, reported_name?, reported_desk_id? }
  *
- * Simple text feedback — no "report this User ID" targeting. (That was
- * tried and dropped: people meeting on a Google Meet call have no way to
- * see each other's JoinDesk account/User ID, only their Meet display
- * name, so asking for a User ID here was unusable in practice. For now,
- * a disruptive person in a live call is handled directly in Google
- * Meet — the host removes them from the call — and an admin can always
- * platform-block a repeat offender manually from the Admin Panel once
- * they know who it is.)
+ * `reported_name` / `reported_desk_id` replace the old "report this User
+ * ID" targeting, which was tried and dropped: people meeting on a Google
+ * Meet call have no way to see each other's JoinDesk account/User ID, only
+ * a name and which desk they were in. Both are optional and go through no
+ * extra validation beyond "is it the right shape" — a complaint still
+ * sends fine with neither filled in, this just gives the admin something
+ * to go on when they are.
  */
 export async function createFeedback(req, res) {
   try {
-    const { type, message } = req.body;
+    const { type, message, reported_name, reported_desk_id } = req.body;
 
     if (type !== "suggestion" && type !== "complaint") {
       return res.status(400).json({ error: "type must be 'suggestion' or 'complaint'" });
@@ -24,13 +23,25 @@ export async function createFeedback(req, res) {
       return res.status(400).json({ error: "message is required" });
     }
 
+    const insertRow = {
+      user_id: req.user.id,
+      type,
+      message: message.trim(),
+      status: "pending",
+    };
+
+    if (type === "complaint") {
+      if (typeof reported_name === "string" && reported_name.trim()) {
+        insertRow.reported_name = reported_name.trim();
+      }
+      if (typeof reported_desk_id === "string" && reported_desk_id.trim()) {
+        insertRow.reported_desk_id = reported_desk_id.trim();
+      }
+    }
+
     const { data, error } = await supabaseAdmin
       .from("feedback")
-      .insert({
-        user_id: req.user.id,
-        type,
-        message: message.trim(),
-      })
+      .insert(insertRow)
       .select()
       .single();
 

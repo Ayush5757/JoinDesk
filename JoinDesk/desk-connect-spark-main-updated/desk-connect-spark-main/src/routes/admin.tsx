@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Lock,
@@ -13,6 +13,12 @@ import {
   LayoutGrid,
   Users as UsersIcon,
   ExternalLink,
+  MessageSquareWarning,
+  Clock,
+  CheckCircle2,
+  AlertTriangle,
+  RotateCcw,
+  Mail,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { Navbar } from "@/components/joindesk/Navbar";
@@ -29,7 +35,11 @@ import {
   adminListUsers,
   adminBlockUser,
   adminUnblockUser,
+  adminListFeedback,
+  adminUpdateFeedbackStatus,
   type AdminUser,
+  type AdminFeedback,
+  type FeedbackStatus,
 } from "@/lib/admin";
 import { relativeTime, type Desk } from "@/lib/joindesk";
 import { ApiError } from "@/lib/api";
@@ -102,7 +112,15 @@ function AdminGate() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  if (unlocked) return <AdminPanel onLock={() => { lockAdmin(); setUnlocked(false); }} />;
+  if (unlocked)
+    return (
+      <AdminPanel
+        onLock={() => {
+          lockAdmin();
+          setUnlocked(false);
+        }}
+      />
+    );
 
   const submit = async () => {
     if (!password) return;
@@ -151,7 +169,7 @@ function AdminGate() {
 }
 
 function AdminPanel({ onLock }: { onLock: () => void }) {
-  const [tab, setTab] = useState<"desks" | "users">("desks");
+  const [tab, setTab] = useState<"desks" | "users" | "feedback">("desks");
 
   return (
     <div>
@@ -175,7 +193,9 @@ function AdminPanel({ onLock }: { onLock: () => void }) {
           onClick={() => setTab("desks")}
           className={
             "inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-colors " +
-            (tab === "desks" ? "bg-card shadow-soft" : "text-muted-foreground hover:text-foreground")
+            (tab === "desks"
+              ? "bg-card shadow-soft"
+              : "text-muted-foreground hover:text-foreground")
           }
         >
           <LayoutGrid className="h-4 w-4" /> Desks
@@ -184,14 +204,35 @@ function AdminPanel({ onLock }: { onLock: () => void }) {
           onClick={() => setTab("users")}
           className={
             "inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-colors " +
-            (tab === "users" ? "bg-card shadow-soft" : "text-muted-foreground hover:text-foreground")
+            (tab === "users"
+              ? "bg-card shadow-soft"
+              : "text-muted-foreground hover:text-foreground")
           }
         >
           <UsersIcon className="h-4 w-4" /> Users
         </button>
+        <button
+          onClick={() => setTab("feedback")}
+          className={
+            "inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-colors " +
+            (tab === "feedback"
+              ? "bg-card shadow-soft"
+              : "text-muted-foreground hover:text-foreground")
+          }
+        >
+          <MessageSquareWarning className="h-4 w-4" /> Feedback
+        </button>
       </div>
 
-      <div className="mt-6">{tab === "desks" ? <AdminDesksTab /> : <AdminUsersTab />}</div>
+      <div className="mt-6">
+        {tab === "desks" ? (
+          <AdminDesksTab />
+        ) : tab === "users" ? (
+          <AdminUsersTab />
+        ) : (
+          <AdminFeedbackTab />
+        )}
+      </div>
     </div>
   );
 }
@@ -278,7 +319,9 @@ function AdminDesksTab() {
               onClick={() => setFilter(f)}
               className={
                 "rounded-full px-3 py-1.5 transition-colors " +
-                (filter === f ? "bg-card shadow-soft" : "text-muted-foreground hover:text-foreground")
+                (filter === f
+                  ? "bg-card shadow-soft"
+                  : "text-muted-foreground hover:text-foreground")
               }
             >
               {f === "all" ? "All" : f === "true" ? "Special" : "Normal"}
@@ -486,6 +529,240 @@ function AdminUsersTab() {
           ))
         )}
       </div>
+    </div>
+  );
+}
+
+const FEEDBACK_PAGE_SIZE = 15;
+
+const STATUS_META: Record<
+  FeedbackStatus,
+  { label: string; icon: typeof Clock; className: string }
+> = {
+  pending: {
+    label: "Incomplete",
+    icon: Clock,
+    className: "bg-muted text-muted-foreground",
+  },
+  resolved: {
+    label: "Complete",
+    icon: CheckCircle2,
+    className: "bg-emerald-500/10 text-emerald-600",
+  },
+  problem: {
+    label: "Problem",
+    icon: AlertTriangle,
+    className: "bg-destructive/10 text-destructive",
+  },
+};
+
+function AdminFeedbackTab() {
+  const [items, setItems] = useState<AdminFeedback[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [typeFilter, setTypeFilter] = useState<"all" | "suggestion" | "complaint">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | FeedbackStatus>("all");
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  const load = async (offset: number, replace: boolean) => {
+    if (replace) setLoading(true);
+    else setLoadingMore(true);
+    try {
+      const { feedback, hasMore: more } = await adminListFeedback({
+        limit: FEEDBACK_PAGE_SIZE,
+        offset,
+        ...(typeFilter !== "all" ? { type: typeFilter } : {}),
+        ...(statusFilter !== "all" ? { status: statusFilter } : {}),
+      });
+      setItems((prev) => (replace ? feedback : [...prev, ...feedback]));
+      setHasMore(more);
+    } catch {
+      toast.error("Couldn't load feedback.");
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  };
+
+  // Reset to page 1 whenever a filter changes.
+  useEffect(() => {
+    load(0, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [typeFilter, statusFilter]);
+
+  // Infinite scroll — load the next 15 as the sentinel comes into view.
+  useEffect(() => {
+    if (!hasMore || loading || loadingMore) return;
+    const node = sentinelRef.current;
+    if (!node) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) load(items.length, false);
+      },
+      { rootMargin: "250px" },
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasMore, loading, loadingMore, items.length]);
+
+  const setStatus = async (item: AdminFeedback, status: FeedbackStatus) => {
+    setBusyId(item.id);
+    try {
+      const updated = await adminUpdateFeedbackStatus(item.id, status);
+      setItems((prev) => {
+        // If the current status filter no longer matches, drop the row from
+        // this view instead of showing it in the wrong bucket.
+        if (statusFilter !== "all" && updated.status !== statusFilter) {
+          return prev.filter((x) => x.id !== item.id);
+        }
+        return prev.map((x) => (x.id === item.id ? updated : x));
+      });
+      toast.success(`Marked ${STATUS_META[status].label}.`);
+    } catch {
+      toast.error("That didn't go through. Try again.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const filterChipClass = (active: boolean) =>
+    "rounded-full px-3 py-1.5 text-xs font-semibold transition-colors " +
+    (active ? "bg-card shadow-soft" : "text-muted-foreground hover:text-foreground");
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="inline-flex rounded-full border border-border bg-muted/50 p-1">
+          {(["all", "suggestion", "complaint"] as const).map((f) => (
+            <button
+              key={f}
+              onClick={() => setTypeFilter(f)}
+              className={filterChipClass(typeFilter === f)}
+            >
+              {f === "all" ? "All types" : f === "suggestion" ? "Suggestions" : "Complaints"}
+            </button>
+          ))}
+        </div>
+        <div className="inline-flex rounded-full border border-border bg-muted/50 p-1">
+          {(["all", "pending", "resolved", "problem"] as const).map((f) => (
+            <button
+              key={f}
+              onClick={() => setStatusFilter(f)}
+              className={filterChipClass(statusFilter === f)}
+            >
+              {f === "all" ? "All statuses" : STATUS_META[f].label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-6 space-y-3">
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Loading feedback…</p>
+        ) : items.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nothing here yet.</p>
+        ) : (
+          items.map((item) => {
+            const meta = STATUS_META[item.status];
+            const StatusIcon = meta.icon;
+            return (
+              <div
+                key={item.id}
+                className="rounded-2xl border border-border bg-card p-4 shadow-soft"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={
+                          "rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize " +
+                          (item.type === "complaint"
+                            ? "bg-destructive/10 text-destructive"
+                            : "bg-info-soft text-info")
+                        }
+                      >
+                        {item.type}
+                      </span>
+                      <span
+                        className={
+                          "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold " +
+                          meta.className
+                        }
+                      >
+                        <StatusIcon className="h-3 w-3" /> {meta.label}
+                      </span>
+                      <span className="text-[11px] text-muted-foreground">
+                        {relativeTime(new Date(item.created_at).getTime())}
+                      </span>
+                    </div>
+
+                    <p className="mt-2 text-sm leading-relaxed">{item.message}</p>
+
+                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                      {item.reporter && (
+                        <span className="inline-flex items-center gap-1">
+                          <Mail className="h-3 w-3" />
+                          {item.reporter.name} ({item.reporter.email})
+                        </span>
+                      )}
+                      {item.type === "complaint" && item.reported_name && (
+                        <span className="inline-flex items-center gap-1">
+                          <UsersIcon className="h-3 w-3" /> Reported: {item.reported_name}
+                        </span>
+                      )}
+                      {item.type === "complaint" && item.reported_desk && (
+                        <span className="inline-flex items-center gap-1">
+                          <LayoutGrid className="h-3 w-3" /> Desk: {item.reported_desk.title}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    {item.status !== "resolved" && (
+                      <button
+                        onClick={() => setStatus(item, "resolved")}
+                        disabled={busyId === item.id}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-600 transition-colors hover:bg-emerald-500/20 disabled:opacity-60"
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Mark Complete
+                      </button>
+                    )}
+                    {item.status === "pending" && (
+                      <button
+                        onClick={() => setStatus(item, "problem")}
+                        disabled={busyId === item.id}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-destructive/30 bg-destructive/10 px-3 py-1.5 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/20 disabled:opacity-60"
+                      >
+                        <AlertTriangle className="h-3.5 w-3.5" /> Mark Problem
+                      </button>
+                    )}
+                    {item.status !== "pending" && (
+                      <button
+                        onClick={() => setStatus(item, "pending")}
+                        disabled={busyId === item.id}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-60"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" /> Reopen
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      <div ref={sentinelRef} className="h-1" />
+      {loadingMore && (
+        <p className="mt-4 text-center text-sm text-muted-foreground">Loading more…</p>
+      )}
     </div>
   );
 }

@@ -69,7 +69,7 @@ export async function adminUpdateDesk(
     meetLink?: string;
     topic?: string;
     isSpecial?: boolean;
-  }
+  },
 ) {
   const body: Record<string, unknown> = {};
   if (fields.title !== undefined) body["title"] = fields.title;
@@ -95,7 +95,7 @@ export async function adminListUsers(opts: { limit: number; offset: number; sear
   if (opts.search?.trim()) params.set("search", opts.search.trim());
 
   return adminApi.get<{ users: AdminUser[]; hasMore: boolean; total: number }>(
-    `/api/admin/users?${params.toString()}`
+    `/api/admin/users?${params.toString()}`,
   );
 }
 
@@ -115,6 +115,58 @@ export function adminUnblockUser(userId: string) {
 export function adminGetDeskJoiners(deskId: string, search = "") {
   const params = search ? `?search=${encodeURIComponent(search)}` : "";
   return adminApi.get<{ deskTitle: string; joiners: Joiner[] }>(
-    `/api/desks/${deskId}/joiners${params}`
+    `/api/desks/${deskId}/joiners${params}`,
   );
+}
+
+// =========================
+// Feedback (Suggestions & Complaints)
+// =========================
+
+export type FeedbackStatus = "pending" | "resolved" | "problem";
+
+export type AdminFeedback = {
+  id: string;
+  type: "suggestion" | "complaint";
+  message: string;
+  status: FeedbackStatus;
+  created_at: string;
+  reported_name: string | null;
+  reporter: { id: string; name: string; email: string } | null;
+  reported_desk: { id: string; title: string } | null;
+};
+
+/**
+ * GET /api/admin/feedback — powers the Feedback tab's infinite-scroll list.
+ * `type`/`status` left undefined mean "all".
+ */
+export async function adminListFeedback(opts: {
+  limit: number;
+  offset: number;
+  type?: "suggestion" | "complaint";
+  status?: FeedbackStatus;
+}) {
+  const params = new URLSearchParams({
+    limit: String(opts.limit),
+    offset: String(opts.offset),
+  });
+  if (opts.type) params.set("type", opts.type);
+  if (opts.status) params.set("status", opts.status);
+
+  return adminApi.get<{ feedback: AdminFeedback[]; hasMore: boolean; total: number }>(
+    `/api/admin/feedback?${params.toString()}`,
+  );
+}
+
+/**
+ * PATCH /api/admin/feedback/:id/status — move a suggestion/complaint
+ * between Incomplete ("pending"), Complete ("resolved"), and Problem
+ * ("problem").
+ */
+export async function adminUpdateFeedbackStatus(feedbackId: string, status: FeedbackStatus) {
+  const { feedback } = await adminApi.patch<{ feedback: AdminFeedback }>(
+    `/api/admin/feedback/${feedbackId}/status`,
+    { status },
+  );
+  return feedback;
 }
