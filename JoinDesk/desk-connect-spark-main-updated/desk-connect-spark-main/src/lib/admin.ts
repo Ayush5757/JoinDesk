@@ -86,6 +86,22 @@ export function adminDeleteDesk(deskId: string) {
   return adminApi.delete<{ deleted: boolean }>(`/api/desks/${deskId}`);
 }
 
+/**
+ * Special-desk manual ordering — the up/down arrows and "jump to spot"
+ * input in the Admin Panel's Desks tab. Only meaningful for Special desks;
+ * both just return whether the move happened so the caller can re-fetch.
+ */
+export function adminMoveSpecialDesk(deskId: string, direction: "up" | "down") {
+  return adminApi.patch<{ moved: boolean }>(`/api/admin/desks/${deskId}/move`, { direction });
+}
+
+export function adminSetSpecialDeskPosition(deskId: string, position: number) {
+  return adminApi.patch<{ moved: boolean; position: number }>(
+    `/api/admin/desks/${deskId}/position`,
+    { position },
+  );
+}
+
 /** GET /api/admin/users — search/list users for the Block/Unblock screen. */
 export async function adminListUsers(opts: { limit: number; offset: number; search?: string }) {
   const params = new URLSearchParams({

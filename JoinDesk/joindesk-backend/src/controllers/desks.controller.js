@@ -194,6 +194,11 @@ export async function getDesks(req, res) {
  * controller at creation time, not here). Powers both the horizontal
  * preview row on the dashboard and the full `/special` page.
  *
+ * Ordering: by `position` ascending — the exact order an admin arranged
+ * them in from the Admin Panel (see admin.controller.js's move/position
+ * endpoints) — falling back to newest-first for any desk that somehow has
+ * no position yet, so nothing ever silently disappears from the list.
+ *
  * Query params: limit, offset, search (title/description).
  */
 export async function getSpecialDesks(req, res) {
@@ -208,6 +213,7 @@ export async function getSpecialDesks(req, res) {
       .select("*", { count: "exact" })
       .eq("is_special", true)
       .eq("is_hidden", false)
+      .order("position", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 

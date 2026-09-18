@@ -44,6 +44,11 @@ export function unlockAdmin(req, res) {
  * Every desk on the platform — Special and normal, active and expired —
  * so the admin can see and manage everything in one place.
  * Query: search, special ("true" | "false" | omit for all), limit, offset.
+ *
+ * Ordering: when filtered to Special desks only, sorted by `position`
+ * (the admin's own manual order — see moveSpecialDesk/setSpecialDeskPosition
+ * below) so this list matches what the up/down arrows are actually doing.
+ * Otherwise (All / Normal), unchanged: newest first.
  */
 export async function listDesks(req, res) {
   try {
@@ -53,16 +58,23 @@ export async function listDesks(req, res) {
       typeof req.query.search === "string" ? req.query.search.trim().replace(/[%,()]/g, "") : "";
     const special = req.query.special; // "true" | "false" | undefined
 
-    let query = supabaseAdmin
-      .from("desks")
-      .select("*", { count: "exact" })
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
+    let query = supabaseAdmin.from("desks").select("*", { count: "exact" });
+
+    if (special === "true") {
+      query = query
+        .eq("is_special", true)
+        .order("position", { ascending: true, nullsFirst: false })
+        .order("created_at", { ascending: false });
+    } else {
+      query = query.order("created_at", { ascending: false });
+    }
+    query = query.range(offset, offset + limit - 1);
 
     if (search) {
       query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
     }
-    if (special === "true") query = query.eq("is_special", true);
+    // "true" is already filtered above (needed before the .order() calls);
+    // only "false" still needs applying here.
     if (special === "false") query = query.eq("is_special", false);
 
     const { data, error, count } = await query;
@@ -89,6 +101,11 @@ export async function listDesks(req, res) {
  * user creating a desk (shows the admin's real name/avatar, subject to
  * the normal 15-day lifespan) — useful for the admin's own everyday
  * desks alongside their Special ones.
+ *
+ * A new Special desk is appended to the END of the Special order (last
+ * position + 1) instead of jumping to the front — the admin can then use
+ * PATCH /api/admin/desks/:id/move or /position to place it wherever they
+ * actually want it.
  */
 export async function createDesk(req, res) {
   try {
@@ -104,6 +121,7 @@ export async function createDesk(req, res) {
     const special = Boolean(is_special);
     let creator_name = "JoinDesk";
     let creator_avatar = null;
+    let position = null;
 
     if (!special) {
       const { data: profile } = await supabaseAdmin
@@ -113,6 +131,15 @@ export async function createDesk(req, res) {
         .single();
       creator_name = profile?.name || "JoinDesk";
       creator_avatar = profile?.avatar_url || null;
+    } else {
+      const { data: lastRow } = await supabaseAdmin
+        .from("desks")
+        .select("position")
+        .eq("is_special", true)
+        .order("position", { ascending: false, nullsFirst: false })
+        .limit(1)
+        .maybeSingle();
+      position = (lastRow?.position || 0) + 1;
     }
 
     const { data, error } = await supabaseAdmin
@@ -127,6 +154,7 @@ export async function createDesk(req, res) {
         creator_name,
         creator_avatar,
         is_special: special,
+        position,
       })
       .select()
       .single();
@@ -137,6 +165,102 @@ export async function createDesk(req, res) {
   } catch (err) {
     console.error("admin createDesk error:", err);
     return res.status(500).json({ error: "Failed to create desk" });
+  }
+}
+
+/**
+ * Shared helpers for the Special-desk manual ordering feature
+ * (moveSpecialDesk / setSpecialDeskPosition below).
+ */
+async function getOrderedSpecialDeskIds() {
+  const { data, error } = await supabaseAdmin
+    .from("desks")
+    .select("id")
+    .eq("is_special", true)
+    .order("position", { ascending: true, nullsFirst: false })
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data || []).map((d) => d.id);
+}
+
+// Sequential updates — the Special list is admin-curated and small, so this
+// stays simple and safe rather than reaching for a Postgres function/RPC.
+async function renumberSpecialDesks(orderedIds) {
+  for (let i = 0; i < orderedIds.length; i++) {
+    const { error } = await supabaseAdmin
+      .from("desks")
+      .update({ position: i + 1 })
+      .eq("id", orderedIds[i]);
+    if (error) throw error;
+  }
+}
+
+/**
+ * PATCH /api/admin/desks/:id/move
+ * Body: { direction: "up" | "down" }
+ * Swaps this Special desk with its immediate neighbor in the current
+ * order. A no-op (not an error) if it's already at the top/bottom.
+ */
+export async function moveSpecialDesk(req, res) {
+  try {
+    const { id } = req.params;
+    const { direction } = req.body || {};
+    if (direction !== "up" && direction !== "down") {
+      return res.status(400).json({ error: "direction must be 'up' or 'down'" });
+    }
+
+    const ids = await getOrderedSpecialDeskIds();
+    const idx = ids.indexOf(id);
+    if (idx === -1) {
+      return res.status(404).json({ error: "Special desk not found" });
+    }
+
+    const swapWith = direction === "up" ? idx - 1 : idx + 1;
+    if (swapWith < 0 || swapWith >= ids.length) {
+      return res.status(200).json({ moved: false }); // already at the edge
+    }
+
+    [ids[idx], ids[swapWith]] = [ids[swapWith], ids[idx]];
+    await renumberSpecialDesks(ids);
+
+    return res.status(200).json({ moved: true });
+  } catch (err) {
+    console.error("admin moveSpecialDesk error:", err);
+    return res.status(500).json({ error: "Failed to reorder desk" });
+  }
+}
+
+/**
+ * PATCH /api/admin/desks/:id/position
+ * Body: { position: number } (1-based — "2" means second in the Special
+ * row, and anything at or past the list length means "move to last").
+ * Pulls the desk out of its current spot and reinserts it at the target
+ * spot, then renumbers everyone 1..N so the order stays contiguous.
+ */
+export async function setSpecialDeskPosition(req, res) {
+  try {
+    const { id } = req.params;
+    const position = parseInt(req.body?.position, 10);
+    if (!Number.isFinite(position) || position < 1) {
+      return res.status(400).json({ error: "position must be a positive whole number" });
+    }
+
+    const ids = await getOrderedSpecialDeskIds();
+    const idx = ids.indexOf(id);
+    if (idx === -1) {
+      return res.status(404).json({ error: "Special desk not found" });
+    }
+
+    ids.splice(idx, 1);
+    const target = Math.min(Math.max(position - 1, 0), ids.length);
+    ids.splice(target, 0, id);
+
+    await renumberSpecialDesks(ids);
+
+    return res.status(200).json({ moved: true, position: target + 1 });
+  } catch (err) {
+    console.error("admin setSpecialDeskPosition error:", err);
+    return res.status(500).json({ error: "Failed to reorder desk" });
   }
 }
 

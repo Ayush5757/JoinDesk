@@ -200,6 +200,42 @@ create index if not exists feedback_status_idx on public.feedback (status);
 create index if not exists feedback_reported_desk_idx on public.feedback (reported_desk_id);
 
 -- =========================
+-- Feature update: Special desk manual ordering (Admin Panel)
+-- =========================
+-- `desks.position` -> 1-based manual sort order, used ONLY for is_special
+-- desks, so an admin can move any Special desk up/down or to an exact spot
+-- in the dashboard's Special row/page instead of it always sorting by
+-- created_at desc (which used to mean "whatever was created last always
+-- shows first"). NULL for normal (non-special) desks — they keep sorting
+-- by created_at as before. A brand-new Special desk starts with NO
+-- position assigned here in SQL; admin.controller.js assigns
+-- "last position + 1" at creation time so it appends to the END of the
+-- Special row by default, and the admin can then drag/move it wherever
+-- they want (see PATCH /api/admin/desks/:id/move and /position).
+alter table public.desks add column if not exists position integer;
+create index if not exists desks_position_idx on public.desks (position);
+
+-- One-time backfill: give every EXISTING Special desk (created before this
+-- feature existed) a position that matches its current on-screen order
+-- (newest first, same as the old created_at-desc sort) — so running this
+-- migration doesn't visually reshuffle anything that's already live. Only
+-- touches rows where position is still null, so it's safe to re-run.
+do $$
+declare
+  r record;
+  i integer := 0;
+begin
+  for r in
+    select id from public.desks
+    where is_special = true and position is null
+    order by created_at desc
+  loop
+    i := i + 1;
+    update public.desks set position = i where id = r.id;
+  end loop;
+end $$;
+
+-- =========================
 -- Row Level Security
 -- =========================
 -- The backend is the ONLY thing that talks to this database, using the

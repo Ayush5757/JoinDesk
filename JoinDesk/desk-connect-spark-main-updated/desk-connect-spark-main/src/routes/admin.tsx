@@ -11,6 +11,8 @@ import {
   ShieldBan,
   ShieldCheck,
   LayoutGrid,
+  ChevronUp,
+  ChevronDown,
   Users as UsersIcon,
   ExternalLink,
   MessageSquareWarning,
@@ -37,6 +39,8 @@ import {
   adminUnblockUser,
   adminListFeedback,
   adminUpdateFeedbackStatus,
+  adminMoveSpecialDesk,
+  adminSetSpecialDeskPosition,
   type AdminUser,
   type AdminFeedback,
   type FeedbackStatus,
@@ -245,6 +249,13 @@ function AdminDesksTab() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Desk | null>(null);
   const [joinersDeskId, setJoinersDeskId] = useState<string | null>(null);
+  const [reorderBusyId, setReorderBusyId] = useState<string | null>(null);
+  const [positionDraft, setPositionDraft] = useState<Record<string, string>>({});
+
+  // Reordering (up/down + "jump to spot") only makes sense when we're
+  // looking at just the Special desks in their real order — mixing
+  // Special + Normal rows together has no single meaningful order.
+  const reorderable = filter === "true" && !search;
 
   const load = async () => {
     setLoading(true);
@@ -300,6 +311,43 @@ function AdminDesksTab() {
     }
   };
 
+  // Moves a Special desk up/down one spot. Re-fetches the list afterwards
+  // so the on-screen order always matches what's actually saved — no
+  // client-side guessing about the new order.
+  const handleMove = async (desk: Desk, direction: "up" | "down") => {
+    setReorderBusyId(desk.id);
+    try {
+      const { moved } = await adminMoveSpecialDesk(desk.id, direction);
+      if (moved) await load();
+    } catch {
+      toast.error("Couldn't move that desk. Try again.");
+    } finally {
+      setReorderBusyId(null);
+    }
+  };
+
+  // "Jump to spot" — admin types a number (2, 3, last, etc.) and the desk
+  // moves straight there instead of clicking up/down repeatedly.
+  const handleSetPosition = async (desk: Desk) => {
+    const raw = positionDraft[desk.id];
+    const wanted = parseInt(raw ?? "", 10);
+    if (!Number.isFinite(wanted) || wanted < 1) {
+      toast.error("Enter a spot number, like 1 or 3.");
+      return;
+    }
+    setReorderBusyId(desk.id);
+    try {
+      await adminSetSpecialDeskPosition(desk.id, wanted);
+      setPositionDraft((prev) => ({ ...prev, [desk.id]: "" }));
+      await load();
+      toast.success("Moved.");
+    } catch {
+      toast.error("Couldn't move that desk. Try again.");
+    } finally {
+      setReorderBusyId(null);
+    }
+  };
+
   return (
     <div>
       <div className="flex flex-wrap items-center gap-3">
@@ -339,18 +387,52 @@ function AdminDesksTab() {
         </button>
       </div>
 
+      {reorderable && desks.length > 1 && (
+        <p className="mt-4 text-xs text-muted-foreground">
+          Yeh jo order neeche dikh raha hai, dashboard ke Special row mein bhi wahi order dikhega.
+          Upar/neeche arrow se ek jagah move karo, ya "spot" box mein number daal ke seedha kisi bhi
+          number pe le jao.
+        </p>
+      )}
+
       <div className="mt-6 space-y-3">
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading desks…</p>
         ) : desks.length === 0 ? (
           <p className="text-sm text-muted-foreground">No desks match this filter.</p>
         ) : (
-          desks.map((d) => (
+          desks.map((d, index) => (
             <div
               key={d.id}
               className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-soft sm:flex-row sm:items-center sm:justify-between"
             >
-              <div className="min-w-0">
+              {reorderable && (
+                <div className="flex shrink-0 items-center gap-1.5 sm:order-first">
+                  <div className="flex flex-col overflow-hidden rounded-xl border border-border">
+                    <button
+                      onClick={() => handleMove(d, "up")}
+                      disabled={reorderBusyId === d.id || index === 0}
+                      title="Move up"
+                      className="grid h-6 w-8 place-items-center border-b border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <ChevronUp className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleMove(d, "down")}
+                      disabled={reorderBusyId === d.id || index === desks.length - 1}
+                      title="Move down"
+                      className="grid h-6 w-8 place-items-center bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-muted/60 text-xs font-bold text-muted-foreground">
+                    {index + 1}
+                  </span>
+                </div>
+              )}
+
+              <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   {d.isSpecial && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-special-soft px-2 py-0.5 text-[10px] font-semibold text-special">
@@ -363,7 +445,31 @@ function AdminDesksTab() {
                   {d.description || "No description"} · {d.topic} · {relativeTime(d.createdAt)}
                 </p>
               </div>
-              <div className="flex shrink-0 items-center gap-2">
+
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                {reorderable && (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      min={1}
+                      max={desks.length}
+                      placeholder="Spot"
+                      value={positionDraft[d.id] ?? ""}
+                      onChange={(e) =>
+                        setPositionDraft((prev) => ({ ...prev, [d.id]: e.target.value }))
+                      }
+                      onKeyDown={(e) => e.key === "Enter" && handleSetPosition(d)}
+                      className="h-9 w-16 rounded-full border border-border bg-muted/50 px-3 text-center text-xs outline-none focus:border-special/50 focus:bg-card"
+                    />
+                    <button
+                      onClick={() => handleSetPosition(d)}
+                      disabled={reorderBusyId === d.id || !positionDraft[d.id]}
+                      className="rounded-full border border-border bg-card px-3 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Go
+                    </button>
+                  </div>
+                )}
                 <button
                   onClick={() => setJoinersDeskId(d.id)}
                   title="View who joined"

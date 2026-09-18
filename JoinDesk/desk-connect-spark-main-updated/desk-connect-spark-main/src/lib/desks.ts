@@ -29,6 +29,18 @@ export async function searchDesksForPicker(query: string) {
   return desks.map((d) => ({ id: d.id, title: d.title }));
 }
 
+/**
+ * Full desk search (title/description) returning complete Desk objects
+ * (including meetLink) — used by the Pomodoro page's "Join a desk" picker,
+ * which needs the real link to open, not just id + title.
+ */
+export async function searchDesksFull(query: string) {
+  const params = new URLSearchParams({ limit: "8" });
+  if (query.trim()) params.set("search", query.trim());
+  const { desks } = await api.get<{ desks: DeskApiRow[] }>(`/api/desks?${params.toString()}`);
+  return desks.map(deskFromApi) as Desk[];
+}
+
 export type EditableDeskFields = {
   title: string;
   description: string;

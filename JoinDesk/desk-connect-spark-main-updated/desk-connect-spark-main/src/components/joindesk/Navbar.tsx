@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Search, Plus, LayoutGrid, User as UserIcon } from "lucide-react";
+import { Search, Plus, LayoutGrid, User as UserIcon, Timer } from "lucide-react";
 import { GoogleIcon } from "./GoogleIcon";
 import type { AppUser } from "@/lib/auth";
 
@@ -58,6 +58,13 @@ export function Navbar({
 
         {isLoggedIn && user ? (
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <Link
+              to="/pomodoro"
+              title="Focus / Pomodoro"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <Timer className="h-4.5 w-4.5" />
+            </Link>
             {!hideCreate && (
               <button
                 onClick={onCreate}

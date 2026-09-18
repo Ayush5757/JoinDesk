@@ -4,6 +4,8 @@ import {
   unlockAdmin,
   listDesks,
   createDesk,
+  moveSpecialDesk,
+  setSpecialDeskPosition,
   listUsers,
   blockUserAdmin,
   unblockUserAdmin,
@@ -22,6 +24,10 @@ router.post("/unlock", requireAuth, unlockAdmin);
 // when it sees an isAdmin token, so it isn't duplicated here.
 router.get("/desks", requireAdmin, listDesks);
 router.post("/desks", requireAdmin, createDesk);
+// Special-desk manual ordering (Admin Panel "move up/down" arrows and
+// "jump to position" input) — only meaningful for is_special desks.
+router.patch("/desks/:id/move", requireAdmin, moveSpecialDesk);
+router.patch("/desks/:id/position", requireAdmin, setSpecialDeskPosition);
 
 router.get("/users", requireAdmin, listUsers);
 router.post("/users/:id/block", requireAdmin, blockUserAdmin);
