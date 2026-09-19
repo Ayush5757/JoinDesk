@@ -45,7 +45,7 @@ export function Dashboard({
           <div>
             <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Active desks</h1>
             <p className="mt-1.5 text-sm text-muted-foreground">
-              Pick a desk, agree to the desk rules, and get straight to work.
+             "Late-night study session from 10 PM to 12 AM. Join us and study with people who share the same goals!"
             </p>
           </div>
           <button
