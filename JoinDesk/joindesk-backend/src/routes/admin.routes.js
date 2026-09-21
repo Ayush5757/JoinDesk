@@ -11,6 +11,7 @@ import {
   unblockUserAdmin,
   listFeedback,
   updateFeedbackStatus,
+  setAnnouncement,
 } from "../controllers/admin.controller.js";
 
 const router = Router();
@@ -35,5 +36,9 @@ router.post("/users/:id/unblock", requireAdmin, unblockUserAdmin);
 
 router.get("/feedback", requireAdmin, listFeedback);
 router.patch("/feedback/:id/status", requireAdmin, updateFeedbackStatus);
+
+// Site-wide announcement banner (Admin Panel "Notice" tab). Reading it is
+// public — see GET /api/announcement in settings.routes.js.
+router.patch("/announcement", requireAdmin, setAnnouncement);
 
 export default router;

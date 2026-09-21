@@ -236,6 +236,28 @@ begin
 end $$;
 
 -- =========================
+-- Site-wide announcement banner
+-- =========================
+-- A single admin-editable notice shown to every logged-in user at the top
+-- of the dashboard (e.g. "Late-night study session tonight from 10-12").
+-- One row per setting key so this table can hold more site-wide settings
+-- later without another migration. NULL/empty value = no banner shown.
+create table if not exists public.site_settings (
+  key text primary key,
+  value text,
+  updated_at timestamptz not null default now()
+);
+
+-- Seeds today's notice the first time this runs. Uses "do nothing" so it
+-- never overwrites a message the admin has already changed via the panel.
+insert into public.site_settings (key, value)
+values (
+  'announcement',
+  'Late-night study session from 10 PM to 12 AM. Join us and study with people who share the same goals!'
+)
+on conflict (key) do nothing;
+
+-- =========================
 -- Row Level Security
 -- =========================
 -- The backend is the ONLY thing that talks to this database, using the

@@ -21,6 +21,7 @@ import {
   AlertTriangle,
   RotateCcw,
   Mail,
+  Megaphone,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { Navbar } from "@/components/joindesk/Navbar";
@@ -29,6 +30,7 @@ import { AdminDeskModal, type AdminDeskFormValues } from "@/components/joindesk/
 import { AdminJoinersModal } from "@/components/joindesk/AdminJoinersModal";
 import { loginWithGoogle, logout, restoreSession, BlockedError, type AppUser } from "@/lib/auth";
 import { isAdminUnlocked, unlockAdmin, lockAdmin } from "@/lib/adminAuth";
+import { getAnnouncement, adminSetAnnouncement } from "@/lib/settings";
 import {
   adminListDesks,
   adminCreateDesk,
@@ -173,7 +175,7 @@ function AdminGate() {
 }
 
 function AdminPanel({ onLock }: { onLock: () => void }) {
-  const [tab, setTab] = useState<"desks" | "users" | "feedback">("desks");
+  const [tab, setTab] = useState<"desks" | "users" | "feedback" | "notice">("desks");
 
   return (
     <div>
@@ -192,7 +194,7 @@ function AdminPanel({ onLock }: { onLock: () => void }) {
         </button>
       </div>
 
-      <div className="mt-6 inline-flex rounded-full border border-border bg-muted/50 p-1">
+      <div className="mt-6 inline-flex flex-wrap rounded-full border border-border bg-muted/50 p-1">
         <button
           onClick={() => setTab("desks")}
           className={
@@ -226,6 +228,17 @@ function AdminPanel({ onLock }: { onLock: () => void }) {
         >
           <MessageSquareWarning className="h-4 w-4" /> Feedback
         </button>
+        <button
+          onClick={() => setTab("notice")}
+          className={
+            "inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-colors " +
+            (tab === "notice"
+              ? "bg-card shadow-soft"
+              : "text-muted-foreground hover:text-foreground")
+          }
+        >
+          <Megaphone className="h-4 w-4" /> Notice
+        </button>
       </div>
 
       <div className="mt-6">
@@ -233,10 +246,77 @@ function AdminPanel({ onLock }: { onLock: () => void }) {
           <AdminDesksTab />
         ) : tab === "users" ? (
           <AdminUsersTab />
-        ) : (
+        ) : tab === "feedback" ? (
           <AdminFeedbackTab />
+        ) : (
+          <AdminNoticeTab />
         )}
       </div>
+    </div>
+  );
+}
+
+/** The one site-wide message shown to every logged-in user, top of dashboard. */
+function AdminNoticeTab() {
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    getAnnouncement()
+      .then((current) => setMessage(current ?? ""))
+      .catch(() => toast.error("Couldn't load the current notice."))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await adminSetAnnouncement(message);
+      toast.success(message.trim() ? "Notice is live." : "Notice cleared.");
+    } catch {
+      toast.error("Couldn't save the notice. Try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="max-w-xl">
+      <p className="text-sm text-muted-foreground">
+        This message shows in a banner at the top of everyone's dashboard, on phone and desktop
+        alike. Leave it empty and save to remove the banner for everyone.
+      </p>
+      {loading ? (
+        <p className="mt-4 text-sm text-muted-foreground">Loading…</p>
+      ) : (
+        <>
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            rows={4}
+            placeholder="e.g. Late-night study session from 10 PM to 12 AM. Join us!"
+            className="mt-4 w-full resize-none rounded-2xl border border-border bg-muted/40 p-4 text-sm outline-none focus:border-primary/50 focus:bg-card"
+          />
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="rounded-full bg-foreground px-5 py-2.5 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Save notice"}
+            </button>
+            {message.trim() && (
+              <button
+                onClick={() => setMessage("")}
+                className="rounded-full border border-border bg-card px-5 py-2.5 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                Clear text
+              </button>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

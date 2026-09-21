@@ -4,6 +4,7 @@ import { DeskGrid } from "./DeskGrid";
 import { EmptyState } from "./EmptyState";
 import { SpecialDeskRow } from "./SpecialDeskRow";
 import { FeedbackModal } from "./FeedbackModal";
+import { AnnouncementBanner } from "./AnnouncementBanner";
 import { type Desk } from "@/lib/joindesk";
 
 type Props = {
@@ -20,6 +21,8 @@ type Props = {
   onViewJoiners?: ((d: Desk) => void) | undefined;
   specialDesks?: Desk[];
   loadingSpecial?: boolean;
+  slowFirstLoad?: boolean;
+  announcement?: string | null;
 };
 
 export function Dashboard({
@@ -34,6 +37,8 @@ export function Dashboard({
   onViewJoiners,
   specialDesks = [],
   loadingSpecial,
+  slowFirstLoad,
+  announcement,
 }: Props) {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
 
@@ -41,11 +46,13 @@ export function Dashboard({
     <section className="relative mx-auto max-w-6xl px-4 py-10">
       <div className="pointer-events-none absolute -top-28 right-0 h-72 w-72 rounded-full bg-aurora blur-3xl" />
       <div className="relative">
+        <AnnouncementBanner message={announcement ?? null} />
+
         <div className="flex items-start justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Active desks</h1>
             <p className="mt-1.5 text-sm text-muted-foreground">
-             "Late-night study session from 10 PM to 12 AM. Join us and study with people who share the same goals!"
+              Pick a desk, agree to the desk rules, and get straight to work.
             </p>
           </div>
           <button
@@ -62,7 +69,13 @@ export function Dashboard({
           <SpecialDeskRow desks={specialDesks} loading={loadingSpecial} onJoin={onJoin} />
         </div>
 
+
         <div className="mt-8">
+          {loading && slowFirstLoad && (
+            <p className="mb-4 text-center text-xs text-muted-foreground">
+              Waking things up — the first load after a while can take a few extra seconds.
+            </p>
+          )}
           <DeskGrid
             desks={desks}
             loading={loading}

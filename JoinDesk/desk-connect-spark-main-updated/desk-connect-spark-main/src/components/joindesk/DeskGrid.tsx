@@ -58,7 +58,16 @@ export function DeskGrid({
   }, [onLoadMore, hasMore, desks.length]);
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground">Loading desks…</p>;
+    return (
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div
+            key={i}
+            className="h-40 animate-pulse rounded-3xl border border-border bg-muted/40"
+          />
+        ))}
+      </div>
+    );
   }
 
   if (desks.length === 0) {

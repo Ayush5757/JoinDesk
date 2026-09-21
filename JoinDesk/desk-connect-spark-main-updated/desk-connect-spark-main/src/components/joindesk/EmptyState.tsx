@@ -6,8 +6,8 @@ export function EmptyState({ onCreate }: { onCreate: () => void }) {
       <div className="mx-auto grid h-16 w-16 place-items-center rounded-3xl bg-aurora shadow-soft">
         <Coffee className="h-7 w-7 text-primary" />
       </div>
-      {/* <p className="mt-5 text-base font-semibold">No active desks right now.</p> */}
-      {/* <p className="mt-1 text-sm text-muted-foreground">Create !</p> */}
+      <p className="mt-5 text-base font-semibold">No active desks right now.</p>
+      <p className="mt-1 text-sm text-muted-foreground">Be the first to create one!</p>
       <button
         onClick={onCreate}
         className="mt-6 inline-flex items-center gap-1.5 rounded-full bg-brand-gradient px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-soft transition-transform duration-200 hover:scale-[1.03]"

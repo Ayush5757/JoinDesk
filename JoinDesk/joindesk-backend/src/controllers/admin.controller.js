@@ -423,3 +423,26 @@ export async function unblockUserAdmin(req, res) {
     return res.status(500).json({ error: "Failed to unblock user" });
   }
 }
+
+/**
+ * PATCH /api/admin/announcement
+ * Body: { message: string }
+ * Sets (or clears, with an empty/whitespace-only string) the site-wide
+ * notice banner every logged-in user sees at the top of the dashboard.
+ */
+export async function setAnnouncement(req, res) {
+  try {
+    const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
+    const { error } = await supabaseAdmin.from("site_settings").upsert({
+      key: "announcement",
+      value: message || null,
+      updated_at: new Date().toISOString(),
+    });
+    if (error) throw error;
+    return res.status(200).json({ message: message || null });
+  } catch (err) {
+    console.error("admin setAnnouncement error:", err);
+    return res.status(500).json({ error: "Failed to save the announcement" });
+  }
+}
+

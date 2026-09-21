@@ -92,6 +92,39 @@
   box-shadow: var(--shadow-glow);
 }
 
+/* Playful landing-page motion — a slow drifting blob shape behind the hero,
+   and an infinite horizontal ticker for the topic-tag strip. Both are pure
+   CSS so they never add JS weight or block rendering. */
+@utility animate-blob {
+  animation: blob-move 16s ease-in-out infinite;
+}
+
+@utility animate-marquee {
+  animation: marquee-scroll 26s linear infinite;
+}
+
+@keyframes blob-move {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(40px, -30px) scale(1.15);
+  }
+  66% {
+    transform: translate(-30px, 25px) scale(0.9);
+  }
+}
+
+@keyframes marquee-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
 :root {
   --radius: 1rem;
   --background: oklch(0.985 0.005 264);

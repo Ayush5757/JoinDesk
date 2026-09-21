@@ -148,15 +148,64 @@ function useStudyWallpaper() {
 // =========================================================================
 // Ambient study music — synthesized in the browser, so it always works,
 // never has words/lyrics (nothing to distract you), and never depends on
-// any external music API or key. Three smooth, low-tone presets that cycle
-// automatically, or on demand with "Next".
+// any external music API or key. 20 smooth, low-tone presets across three
+// families (pad / noise / plucks) that cycle automatically, or on demand
+// with "Next". All built from the same handful of generic generators below,
+// just with different notes/filters/timing — so adding variety never means
+// adding new audio assets.
 // =========================================================================
-type MusicPreset = "pad" | "rain" | "chimes";
-const MUSIC_PRESETS: { id: MusicPreset; label: string }[] = [
-  { id: "pad", label: "Soft Pad" },
-  { id: "rain", label: "Rainy Focus" },
-  { id: "chimes", label: "Gentle Chimes" },
+type MusicPresetConfig =
+  | { id: string; label: string; kind: "pad"; freqs: number[]; waveform?: OscillatorType }
+  | {
+      id: string;
+      label: string;
+      kind: "noise";
+      filterFreq: number;
+      filterType?: BiquadFilterType;
+      gainTarget: number;
+      swell?: boolean; // slow amplitude LFO — gives an "ocean wave" feel
+    }
+  | {
+      id: string;
+      label: string;
+      kind: "pluck";
+      scale: number[];
+      padFreq?: number;
+      waveform?: OscillatorType;
+      pluckGain?: number;
+      decaySeconds?: number;
+      minGapMs?: number;
+      maxGapMs?: number;
+    };
+
+const MUSIC_PRESETS: MusicPresetConfig[] = [
+  // --- Pads (slow, sustained chords) ---
+  { id: "pad-cmaj", label: "Soft Pad", kind: "pad", freqs: [130.81, 164.81, 196.0] },
+  { id: "pad-amin", label: "Warm Pad", kind: "pad", freqs: [110.0, 130.81, 164.81] },
+  { id: "pad-fmaj7", label: "Dreamy Pad", kind: "pad", freqs: [174.61, 220.0, 261.63, 329.63] },
+  { id: "pad-drone", label: "Deep Drone", kind: "pad", freqs: [65.41, 130.81], waveform: "sine" },
+  { id: "pad-dmin", label: "Twilight Pad", kind: "pad", freqs: [146.83, 174.61, 220.0] },
+  { id: "pad-gmaj", label: "Morning Pad", kind: "pad", freqs: [196.0, 246.94, 293.66] },
+  { id: "pad-emin", label: "Velvet Pad", kind: "pad", freqs: [164.81, 196.0, 246.94], waveform: "triangle" },
+
+  // --- Noise textures (rain / wind / waves) ---
+  { id: "noise-rain-light", label: "Rainy Focus", kind: "noise", filterFreq: 850, gainTarget: 0.3 },
+  { id: "noise-rain-heavy", label: "Heavy Rain", kind: "noise", filterFreq: 500, gainTarget: 0.36 },
+  { id: "noise-waves", label: "Ocean Waves", kind: "noise", filterFreq: 320, gainTarget: 0.32, swell: true },
+  { id: "noise-wind", label: "Wind Whisper", kind: "noise", filterFreq: 1400, filterType: "bandpass", gainTarget: 0.22 },
+  { id: "noise-brown", label: "Brown Noise Deep", kind: "noise", filterFreq: 200, gainTarget: 0.28 },
+  { id: "noise-cafe", label: "Café Hum", kind: "noise", filterFreq: 900, filterType: "bandpass", gainTarget: 0.2 },
+
+  // --- Plucked notes (pentatonic, always pleasant) ---
+  { id: "pluck-c", label: "Gentle Chimes", kind: "pluck", scale: [523.25, 587.33, 659.25, 783.99, 880.0], padFreq: 196.0 },
+  { id: "pluck-d", label: "Wind Chimes", kind: "pluck", scale: [587.33, 659.25, 739.99, 880.0, 987.77], minGapMs: 3500, maxGapMs: 5500 },
+  { id: "pluck-g-marimba", label: "Soft Marimba", kind: "pluck", scale: [392.0, 440.0, 493.88, 587.33, 659.25], waveform: "triangle", padFreq: 130.81 },
+  { id: "pluck-crickets", label: "Night Crickets", kind: "pluck", scale: [1046.5, 1174.7, 1318.5], pluckGain: 0.05, decaySeconds: 0.4, minGapMs: 1500, maxGapMs: 4000 },
+  { id: "pluck-musicbox", label: "Music Box", kind: "pluck", scale: [523.25, 587.33, 659.25, 698.46, 783.99, 880.0], decaySeconds: 1.6, minGapMs: 900, maxGapMs: 2200 },
+  { id: "pluck-zen", label: "Zen Bells", kind: "pluck", scale: [466.16, 523.25, 622.25, 698.46], decaySeconds: 4.5, minGapMs: 4000, maxGapMs: 7000, padFreq: 116.54 },
+  { id: "pluck-lullaby", label: "Lullaby Plucks", kind: "pluck", scale: [311.13, 349.23, 415.3, 466.16, 622.25], decaySeconds: 3, minGapMs: 3000, maxGapMs: 5000, waveform: "triangle" },
 ];
+
 const MUSIC_AUTO_CHANGE_MS = 15 * 60 * 1000;
 
 // Safe accessor — presetIndex is always kept in range via modulo, but
@@ -190,108 +239,170 @@ function useAmbientMusic() {
     return { ctx: ctxRef.current!, master: masterGainRef.current! };
   };
 
-  const startPreset = (preset: MusicPreset) => {
-    const { ctx, master } = ensureContext();
-    stopCurrentRef.current();
-    const stoppers: Array<() => void> = [];
+  // --- Generic generators, shared by every preset above ---
 
-    if (preset === "pad") {
-      // A slow, softly detuned chord — smooth, wordless background hum.
-      const freqs = [130.81, 164.81, 196.0]; // C3, E3, G3
-      freqs.forEach((f, i) => {
-        const osc = ctx.createOscillator();
-        osc.type = "sine";
-        osc.frequency.value = f;
-        const oscGain = ctx.createGain();
-        oscGain.gain.value = 0.0001;
-        osc.connect(oscGain).connect(master);
-        osc.start();
-        oscGain.gain.linearRampToValueAtTime(0.16 / freqs.length, ctx.currentTime + 2.5);
+  function playPad(
+    ctx: AudioContext,
+    master: GainNode,
+    freqs: number[],
+    waveform: OscillatorType,
+    stoppers: Array<() => void>
+  ) {
+    freqs.forEach((f, i) => {
+      const osc = ctx.createOscillator();
+      osc.type = waveform;
+      osc.frequency.value = f;
+      const oscGain = ctx.createGain();
+      oscGain.gain.value = 0.0001;
+      osc.connect(oscGain).connect(master);
+      osc.start();
+      oscGain.gain.linearRampToValueAtTime(0.16 / freqs.length, ctx.currentTime + 2.5);
 
-        const lfo = ctx.createOscillator();
-        lfo.frequency.value = 0.04 + i * 0.015;
-        const lfoGain = ctx.createGain();
-        lfoGain.gain.value = 1.5;
-        lfo.connect(lfoGain).connect(osc.frequency);
-        lfo.start();
+      const lfo = ctx.createOscillator();
+      lfo.frequency.value = 0.04 + i * 0.015;
+      const lfoGain = ctx.createGain();
+      lfoGain.gain.value = 1.5;
+      lfo.connect(lfoGain).connect(osc.frequency);
+      lfo.start();
 
-        stoppers.push(() => {
-          try {
-            osc.stop();
-            lfo.stop();
-          } catch {
-            /* already stopped */
-          }
-        });
-      });
-    } else if (preset === "rain") {
-      // Filtered brown noise — a soft, steady "rain" wash, no words at all.
-      const bufferSize = 2 * ctx.sampleRate;
-      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-      const data = buffer.getChannelData(0);
-      let lastOut = 0;
-      for (let i = 0; i < bufferSize; i++) {
-        const white = Math.random() * 2 - 1;
-        const value = (lastOut + 0.02 * white) / 1.02;
-        lastOut = value;
-        data[i] = value * 3.2;
-      }
-      const src = ctx.createBufferSource();
-      src.buffer = buffer;
-      src.loop = true;
-      const filter = ctx.createBiquadFilter();
-      filter.type = "lowpass";
-      filter.frequency.value = 850;
-      const g = ctx.createGain();
-      g.gain.value = 0.0001;
-      src.connect(filter).connect(g).connect(master);
-      src.start();
-      g.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 2);
       stoppers.push(() => {
         try {
-          src.stop();
+          osc.stop();
+          lfo.stop();
         } catch {
           /* already stopped */
         }
       });
-    } else {
-      // A quiet drone plus occasional soft plucked notes (pentatonic —
-      // always sounds pleasant, never jarring, still no words).
+    });
+  }
+
+  function playNoise(
+    ctx: AudioContext,
+    master: GainNode,
+    filterFreq: number,
+    filterType: BiquadFilterType,
+    gainTarget: number,
+    swell: boolean,
+    stoppers: Array<() => void>
+  ) {
+    const bufferSize = 2 * ctx.sampleRate;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    let lastOut = 0;
+    for (let i = 0; i < bufferSize; i++) {
+      const white = Math.random() * 2 - 1;
+      const value = (lastOut + 0.02 * white) / 1.02;
+      lastOut = value;
+      data[i] = value * 3.2;
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.loop = true;
+    const filter = ctx.createBiquadFilter();
+    filter.type = filterType;
+    filter.frequency.value = filterFreq;
+    const g = ctx.createGain();
+    g.gain.value = 0.0001;
+    src.connect(filter).connect(g).connect(master);
+    src.start();
+    g.gain.linearRampToValueAtTime(gainTarget, ctx.currentTime + 2);
+
+    let swellLfo: OscillatorNode | null = null;
+    let swellGain: GainNode | null = null;
+    if (swell) {
+      // A very slow amplitude wobble on top of the base level — the
+      // "waves rolling in" feel for the Ocean Waves preset.
+      swellLfo = ctx.createOscillator();
+      swellLfo.frequency.value = 0.08;
+      swellGain = ctx.createGain();
+      swellGain.gain.value = gainTarget * 0.4;
+      swellLfo.connect(swellGain).connect(g.gain);
+      swellLfo.start();
+    }
+
+    stoppers.push(() => {
+      try {
+        src.stop();
+        swellLfo?.stop();
+      } catch {
+        /* already stopped */
+      }
+    });
+  }
+
+  function playPluck(
+    ctx: AudioContext,
+    master: GainNode,
+    config: Extract<MusicPresetConfig, { kind: "pluck" }>,
+    stoppers: Array<() => void>
+  ) {
+    const {
+      scale,
+      padFreq,
+      waveform = "sine",
+      pluckGain = 0.11,
+      decaySeconds = 3,
+      minGapMs = 2500,
+      maxGapMs = 6000,
+    } = config;
+
+    if (padFreq) {
       const osc = ctx.createOscillator();
       osc.type = "triangle";
-      osc.frequency.value = 196.0;
+      osc.frequency.value = padFreq;
       const oscGain = ctx.createGain();
       oscGain.gain.value = 0.0001;
       osc.connect(oscGain).connect(master);
       osc.start();
       oscGain.gain.linearRampToValueAtTime(0.07, ctx.currentTime + 2);
-
-      const scale = [523.25, 587.33, 659.25, 783.99, 880.0];
-      let timeoutId = 0;
-      const pluck = () => {
-        const f = scale[Math.floor(Math.random() * scale.length)] ?? 523.25;
-        const o = ctx.createOscillator();
-        o.type = "sine";
-        o.frequency.value = f;
-        const g = ctx.createGain();
-        g.gain.value = 0;
-        o.connect(g).connect(master);
-        o.start();
-        const t = ctx.currentTime;
-        g.gain.linearRampToValueAtTime(0.11, t + 0.05);
-        g.gain.exponentialRampToValueAtTime(0.0001, t + 3);
-        o.stop(t + 3.2);
-        timeoutId = window.setTimeout(pluck, 2500 + Math.random() * 3500);
-      };
-      pluck();
       stoppers.push(() => {
         try {
           osc.stop();
         } catch {
           /* already stopped */
         }
-        window.clearTimeout(timeoutId);
       });
+    }
+
+    let timeoutId = 0;
+    const pluck = () => {
+      const f = scale[Math.floor(Math.random() * scale.length)] ?? scale[0] ?? 523.25;
+      const o = ctx.createOscillator();
+      o.type = waveform;
+      o.frequency.value = f;
+      const g = ctx.createGain();
+      g.gain.value = 0;
+      o.connect(g).connect(master);
+      o.start();
+      const t = ctx.currentTime;
+      g.gain.linearRampToValueAtTime(pluckGain, t + 0.05);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + decaySeconds);
+      o.stop(t + decaySeconds + 0.2);
+      timeoutId = window.setTimeout(pluck, minGapMs + Math.random() * (maxGapMs - minGapMs));
+    };
+    pluck();
+    stoppers.push(() => window.clearTimeout(timeoutId));
+  }
+
+  const startPreset = (config: MusicPresetConfig) => {
+    const { ctx, master } = ensureContext();
+    stopCurrentRef.current();
+    const stoppers: Array<() => void> = [];
+
+    if (config.kind === "pad") {
+      playPad(ctx, master, config.freqs, config.waveform ?? "sine", stoppers);
+    } else if (config.kind === "noise") {
+      playNoise(
+        ctx,
+        master,
+        config.filterFreq,
+        config.filterType ?? "lowpass",
+        config.gainTarget,
+        Boolean(config.swell),
+        stoppers
+      );
+    } else {
+      playPluck(ctx, master, config, stoppers);
     }
 
     stopCurrentRef.current = () => stoppers.forEach((stop) => stop());
@@ -310,7 +421,7 @@ function useAmbientMusic() {
   const play = () => {
     const { ctx } = ensureContext();
     if (ctx.state === "suspended") ctx.resume();
-    startPreset(getMusicPreset(presetIndex).id);
+    startPreset(getMusicPreset(presetIndex));
     setPlaying(true);
   };
   const pause = () => {
@@ -320,7 +431,7 @@ function useAmbientMusic() {
   const next = () => {
     const nextIndex = (presetIndex + 1) % MUSIC_PRESETS.length;
     setPresetIndex(nextIndex);
-    if (playing) startPreset(getMusicPreset(nextIndex).id);
+    if (playing) startPreset(getMusicPreset(nextIndex));
   };
 
   // Auto-change preset every 15 min while playing, so it's never on a loop

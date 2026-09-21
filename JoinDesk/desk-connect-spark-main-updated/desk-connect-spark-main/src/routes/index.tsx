@@ -12,6 +12,7 @@ import { deskFromApi, type Desk, type DeskApiRow } from "@/lib/joindesk";
 import { loginWithGoogle, logout, restoreSession, BlockedError, type AppUser } from "@/lib/auth";
 import { enablePushNotifications } from "@/lib/push";
 import { getSpecialDesksPage } from "@/lib/desks";
+import { getAnnouncement } from "@/lib/settings";
 import { api, ApiError } from "@/lib/api";
 
 const SPECIAL_PREVIEW_COUNT = 10;
@@ -91,6 +92,8 @@ function Index() {
   const [viewJoinersDeskId, setViewJoinersDeskId] = useState<string | null>(null);
   const [specialDesks, setSpecialDesks] = useState<Desk[]>([]);
   const [loadingSpecial, setLoadingSpecial] = useState(false);
+  const [slowFirstLoad, setSlowFirstLoad] = useState(false);
+  const [announcement, setAnnouncement] = useState<string | null>(null);
 
   const PAGE_SIZE = 15;
   const isLoggedIn = !!user;
@@ -110,6 +113,16 @@ function Index() {
       })
       .finally(() => setCheckingSession(false));
   }, []);
+
+  // The site-wide notice banner an admin can set — independent of desks,
+  // fails silently so a missing/broken announcement never blocks the
+  // dashboard from loading.
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    getAnnouncement()
+      .then(setAnnouncement)
+      .catch(() => setAnnouncement(null));
+  }, [isLoggedIn]);
 
   // The horizontal "Special Desks" preview row at the top of the
   // dashboard — a small, fixed-size slice, independent of the main
@@ -155,6 +168,19 @@ function Index() {
       setLoadingMore(false);
     }
   };
+
+  // If the very first load takes unusually long (a serverless cold start on
+  // the backend, most likely), let the person know what's happening after
+  // a few seconds instead of leaving them staring at a stuck-looking
+  // skeleton with no explanation.
+  useEffect(() => {
+    if (!loadingDesks || desks.length > 0) {
+      setSlowFirstLoad(false);
+      return;
+    }
+    const handle = setTimeout(() => setSlowFirstLoad(true), 4000);
+    return () => clearTimeout(handle);
+  }, [loadingDesks, desks.length]);
 
   // Fetch desks once logged in, and re-fetch from the backend whenever the
   // search text or topic changes (debounced so we don't call the API on
@@ -259,6 +285,8 @@ function Index() {
             onViewJoiners={(d) => setViewJoinersDeskId(d.id)}
             specialDesks={specialDesks}
             loadingSpecial={loadingSpecial}
+            announcement={announcement}
+            slowFirstLoad={slowFirstLoad}
           />
         ) : (
           <LandingSection onLogin={handleLogin} faqItems={FAQ_ITEMS} />

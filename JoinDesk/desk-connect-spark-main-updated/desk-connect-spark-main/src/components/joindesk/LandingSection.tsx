@@ -22,6 +22,19 @@ import {
 import { GoogleIcon } from "./GoogleIcon";
 import { initialDesks } from "@/lib/joindesk";
 
+// Scrolling ticker strip between the hero and the photo strip — quick,
+// scannable proof of what people actually come here to do.
+const TICKER_TOPICS = [
+  "DSA Grinding",
+  "Exam Prep",
+  "Deep Work",
+  "Thesis Writing",
+  "Research",
+  "Side Projects",
+  "Interview Prep",
+  "Reading",
+];
+
 const features = [
   { icon: Target, title: "Topic Discovery", copy: "Find focused study or work spaces instantly." },
   { icon: Link2, title: "Direct Meet Access", copy: "One-click redirect to any meeting link — Meet, Zoom, Teams, and more." },
@@ -111,28 +124,51 @@ export function LandingSection({
 
   return (
     <div className="relative overflow-hidden">
-      <div className="pointer-events-none absolute -top-40 left-1/2 h-[520px] w-[900px] -translate-x-1/2 rounded-full bg-aurora blur-3xl" />
+      {/* Drifting gradient blobs — slow, subtle motion instead of one static blur */}
+      <div className="pointer-events-none absolute -top-40 left-1/2 h-[520px] w-[900px] -translate-x-1/2 rounded-full bg-aurora opacity-90 blur-3xl animate-blob" />
+      <div
+        className="pointer-events-none absolute -top-24 left-1/4 h-72 w-72 rounded-full bg-aurora opacity-50 blur-3xl animate-blob"
+        style={{ animationDelay: "-6s" }}
+      />
       <section className="relative mx-auto max-w-6xl px-4 pt-16 pb-10 sm:pt-24">
         <div className="grid items-center gap-12 lg:grid-cols-2">
-          <div>
-            <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card/70 px-3 py-1 text-xs font-medium text-muted-foreground shadow-soft backdrop-blur">
-              <Sparkles className="h-3.5 w-3.5 text-primary" />
-              Silent co-working, on demand
+          <div className="text-center lg:text-left">
+            <span className="inline-flex -rotate-2 items-center gap-2 rounded-full border border-primary/30 bg-brand-gradient px-3.5 py-1.5 text-xs font-bold text-primary-foreground shadow-glow">
+              <Sparkles className="h-3.5 w-3.5" />
+              Silent co-working, on demand ✨
             </span>
             <h1 className="mt-5 text-4xl font-bold leading-[1.08] tracking-tight sm:text-6xl">
               Lock in{" "}
-              <span className="bg-brand-gradient bg-clip-text text-transparent">with strangers</span>
+              <span className="relative inline-block">
+                <span className="bg-brand-gradient bg-clip-text text-transparent">
+                  with strangers
+                </span>
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 200 12"
+                  className="absolute -bottom-1.5 left-0 h-3 w-full text-primary/60"
+                  preserveAspectRatio="none"
+                >
+                  <path
+                    d="M2 8C40 2 90 2 100 6C110 10 160 10 198 4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </span>
               , online.
             </h1>
-            <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+            <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg lg:mx-0">
               JoinDesk connects you with real people for focused study or work sessions — live
               over video call, camera optional. No group chats, no small talk, no algorithm.
               Just a quiet room, a shared timer, and other people who are actually doing the work.
             </p>
-            <div className="mt-8 flex flex-wrap items-center gap-4">
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-4 lg:justify-start">
               <button
                 onClick={onLogin}
-                className="inline-flex items-center gap-3 rounded-full bg-card px-6 py-3.5 text-base font-semibold shadow-soft ring-1 ring-border transition-all duration-200 hover:-translate-y-0.5 hover:shadow-glow"
+                className="inline-flex items-center gap-3 rounded-full bg-card px-6 py-3.5 text-base font-semibold shadow-glow ring-1 ring-border transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.03] active:scale-[0.98]"
               >
                 <GoogleIcon />
                 Continue with Google
@@ -148,7 +184,7 @@ export function LandingSection({
                     />
                   ))}
                 </div>
-                <p className="text-xs leading-tight text-muted-foreground">
+                <p className="text-left text-xs leading-tight text-muted-foreground">
                   Students, researchers &amp; remote
                   <br />
                   workers, focusing right now.
@@ -163,7 +199,7 @@ export function LandingSection({
               {features.map((f) => (
                 <div
                   key={f.title}
-                  className="rounded-2xl border border-border bg-card/70 p-4 shadow-soft backdrop-blur transition-transform duration-200 hover:-translate-y-1"
+                  className="rounded-2xl border border-border bg-card/70 p-4 text-left shadow-soft backdrop-blur transition-all duration-200 hover:-translate-y-1 hover:rotate-1 hover:shadow-glow"
                 >
                   <f.icon className="h-5 w-5 text-primary" />
                   <p className="mt-2.5 text-sm font-semibold">{f.title}</p>
@@ -198,8 +234,11 @@ export function LandingSection({
                         <p className="truncate text-sm font-semibold">{d.creatorName}</p>
                         <p className="text-xs text-muted-foreground">is focusing now</p>
                       </div>
-                      <span className="ml-auto flex shrink-0 items-center gap-1.5 rounded-full bg-success-soft px-2.5 py-1 text-[11px] font-medium text-success">
-                        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" />
+                      <span className="relative ml-auto flex shrink-0 items-center gap-1.5 rounded-full bg-success-soft px-2.5 py-1 text-[11px] font-medium text-success">
+                        <span className="relative flex h-1.5 w-1.5">
+                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-75" />
+                          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-success" />
+                        </span>
                         Live
                       </span>
                     </div>
@@ -209,6 +248,21 @@ export function LandingSection({
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* Topic ticker — a bit of playful motion between the hero and the photo strip */}
+      <section className="relative overflow-hidden border-y border-border/60 bg-card/40 py-3">
+        <div className="flex w-max animate-marquee gap-3 whitespace-nowrap">
+          {[...TICKER_TOPICS, ...TICKER_TOPICS].map((topic, i) => (
+            <span
+              key={`${topic}-${i}`}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-4 py-1.5 text-xs font-semibold text-muted-foreground shadow-soft"
+            >
+              <Sparkles className="h-3 w-3 text-primary" />
+              {topic}
+            </span>
+          ))}
         </div>
       </section>
 
@@ -265,9 +319,11 @@ export function LandingSection({
           {personas.map((p) => (
             <div
               key={p.title}
-              className="rounded-2xl border border-border bg-card/70 p-5 text-left shadow-soft backdrop-blur transition-transform duration-200 hover:-translate-y-1"
+              className="rounded-2xl border border-border bg-card/70 p-5 text-left shadow-soft backdrop-blur transition-all duration-200 hover:-translate-y-1 hover:rotate-1 hover:shadow-glow"
             >
-              <p.icon className="h-5 w-5 text-primary" />
+              <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand-gradient">
+                <p.icon className="h-4.5 w-4.5 text-primary-foreground" />
+              </span>
               <h3 className="mt-3 text-sm font-semibold">{p.title}</h3>
               <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{p.copy}</p>
             </div>
@@ -289,7 +345,7 @@ export function LandingSection({
           {whyItWorks.map((w) => (
             <div
               key={w.title}
-              className="rounded-2xl border border-border bg-card/70 p-5 text-left shadow-soft backdrop-blur transition-transform duration-200 hover:-translate-y-1"
+              className="rounded-2xl border border-border bg-card/70 p-5 text-left shadow-soft backdrop-blur transition-all duration-200 hover:-translate-y-1 hover:-rotate-1 hover:shadow-glow"
             >
               <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand-gradient">
                 <w.icon className="h-4.5 w-4.5 text-primary-foreground" />
@@ -316,11 +372,11 @@ export function LandingSection({
           />
           {steps.map((s, i) => {
             const icons = [MousePointerClick, LogIn, Video];
-            const StepIcon = icons[i];
+            const StepIcon = icons[i] ?? MousePointerClick;
             return (
               <div
                 key={s.title}
-                className="relative rounded-2xl border border-border bg-card p-6 shadow-soft"
+                className="relative rounded-2xl border border-border bg-card p-6 shadow-soft transition-all duration-200 hover:-translate-y-1 hover:shadow-glow"
               >
                 <div className="flex items-center gap-3">
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-gradient text-sm font-bold text-primary-foreground">
@@ -339,7 +395,19 @@ export function LandingSection({
       {/* Closing CTA band */}
       <section className="relative mx-auto max-w-6xl px-4 pb-4 sm:pb-8">
         <div className="relative overflow-hidden rounded-3xl border border-border bg-card/70 px-6 py-12 text-center shadow-soft backdrop-blur sm:px-12 sm:py-16">
-          <div className="pointer-events-none absolute inset-0 bg-aurora opacity-60 blur-2xl" />
+          <div className="pointer-events-none absolute inset-0 bg-aurora opacity-60 blur-2xl animate-blob" />
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute left-6 top-6 hidden -rotate-12 text-3xl sm:block"
+          >
+            🔥
+          </span>
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute right-8 bottom-8 hidden rotate-12 text-3xl sm:block"
+          >
+            ⚡
+          </span>
           <div className="relative">
             <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
               Stop scrolling. Start a desk.
@@ -349,7 +417,7 @@ export function LandingSection({
             </p>
             <button
               onClick={onLogin}
-              className="mt-7 inline-flex items-center gap-2 rounded-full bg-brand-gradient px-7 py-3.5 text-base font-semibold text-primary-foreground shadow-glow transition-transform duration-200 hover:scale-[1.03] active:scale-[0.98]"
+              className="mt-7 inline-flex items-center gap-2 rounded-full bg-brand-gradient px-7 py-3.5 text-base font-semibold text-primary-foreground shadow-glow transition-transform duration-200 hover:scale-[1.05] active:scale-[0.98]"
             >
               Continue with Google
               <ArrowRight className="h-4 w-4" />

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Search, Plus, LayoutGrid, User as UserIcon, Timer } from "lucide-react";
 import { GoogleIcon } from "./GoogleIcon";
@@ -28,6 +28,20 @@ export function Navbar({
   hideCreate,
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close the profile menu on outside click — was missing before, so it
+  // used to stay open no matter where else you clicked on the page.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [menuOpen]);
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/70 backdrop-blur-xl">
@@ -74,7 +88,7 @@ export function Navbar({
                 <span className="hidden sm:inline">Create Desk</span>
               </button>
             )}
-            <div className="relative">
+            <div className="relative" ref={menuRef}>
               <button
                 onClick={() => setMenuOpen((o) => !o)}
                 className="block h-9 w-9 overflow-hidden rounded-full ring-2 ring-border transition hover:ring-primary/50"
@@ -92,7 +106,7 @@ export function Navbar({
                 )}
               </button>
               {menuOpen && (
-                <div className="absolute right-0 mt-2 w-60 rounded-2xl border border-border bg-card/95 p-4 shadow-soft backdrop-blur-xl">
+                <div className="absolute right-0 mt-2 w-60 rounded-2xl border border-border bg-card/95 p-4 text-foreground shadow-soft backdrop-blur-xl">
                   <p className="text-sm font-semibold">{user.name}</p>
                   <p className="mt-0.5 truncate text-xs text-muted-foreground">{user.email}</p>
                   <Link
