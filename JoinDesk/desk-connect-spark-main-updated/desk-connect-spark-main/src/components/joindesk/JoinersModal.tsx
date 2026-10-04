@@ -65,7 +65,7 @@ export function JoinersModal({
         toast.success(`Blocked ${user.name}. Your future desks won't show up for them.`);
       }
       setJoiners((prev) =>
-        prev.map((j) => (j.id === user.id ? { ...j, isBlocked: !j.isBlocked } : j))
+        prev.map((j) => (j.id === user.id ? { ...j, isBlocked: !j.isBlocked } : j)),
       );
     } catch {
       toast.error("That didn't go through. Try again.");
@@ -82,10 +82,12 @@ export function JoinersModal({
         toast.success(`Removed ${user.name} from Special`);
       } else {
         await markSpecial(user.id);
-        toast.success(`${user.name} marked Special — they'll be emailed about your new desks.`);
+        toast.success(
+          `${user.name} marked Special — they'll get a notification when you open a new desk.`,
+        );
       }
       setJoiners((prev) =>
-        prev.map((j) => (j.id === user.id ? { ...j, isSpecial: !j.isSpecial } : j))
+        prev.map((j) => (j.id === user.id ? { ...j, isSpecial: !j.isSpecial } : j)),
       );
     } catch {
       toast.error("That didn't go through. Try again.");
@@ -140,9 +142,7 @@ export function JoinersModal({
               >
                 <p className="truncate text-sm font-semibold">
                   {j.name}
-                  {j.isSpecial && (
-                    <Sparkles className="ml-1.5 inline h-3.5 w-3.5 text-amber-500" />
-                  )}
+                  {j.isSpecial && <Sparkles className="ml-1.5 inline h-3.5 w-3.5 text-amber-500" />}
                 </p>
                 <p className="truncate text-xs text-muted-foreground">{j.email}</p>
               </Link>

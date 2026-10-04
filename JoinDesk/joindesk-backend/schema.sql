@@ -264,3 +264,97 @@ on conflict (key) do nothing;
 -- service_role key (which bypasses RLS entirely). Since the frontend never
 -- queries Supabase directly, RLS is left off here for simplicity — enable
 -- it later if you ever expose these tables to direct client access.
+
+-- =========================
+-- Feature update: Join tracking, Free access, Razorpay payments
+-- =========================
+-- Safe to re-run. Run this whole block once in the Supabase SQL Editor.
+
+-- ---- users: trial + subscription + activity counters ----
+-- trial_started_at: the free trial (TRIAL_DAYS in .env) counts from here.
+--   NOTE: adding this column with `default now()` gives every EXISTING user
+--   a fresh trial starting today (so nobody gets locked out the moment you
+--   turn the paywall on). If you'd rather existing users start with their
+--   trial already used up, run once after this:
+--     update public.users set trial_started_at = created_at;
+-- subscription_expires_at: set by a successful Razorpay payment.
+-- total_joins / last_join_at: cheap counters so the admin can sort users by
+--   activity ("dead" users = total_joins = 0) without scanning all events.
+alter table public.users add column if not exists trial_started_at timestamptz not null default now();
+alter table public.users add column if not exists subscription_expires_at timestamptz;
+alter table public.users add column if not exists total_joins integer not null default 0;
+alter table public.users add column if not exists last_join_at timestamptz;
+
+create index if not exists users_last_join_at_idx on public.users (last_join_at);
+create index if not exists users_total_joins_idx on public.users (total_joins);
+
+-- ---- desk_join_events: EVERY join click, not just the first ----
+-- desk_joins (unique per desk+user) is still used for the "People who
+-- joined" list. This table is the full log used for the admin analytics
+-- (daily/monthly counts, who is frequent, who is dead, Excel export).
+-- access_type: how they got in -> 'paid' | 'trial' | 'free_all' |
+--              'free_desk' | 'open' (paywall off) | 'legacy' (backfilled).
+create table if not exists public.desk_join_events (
+  id uuid primary key default gen_random_uuid(),
+  desk_id uuid not null references public.desks (id) on delete cascade,
+  user_id uuid not null references public.users (id) on delete cascade,
+  joined_at timestamptz not null default now(),
+  access_type text
+);
+
+create index if not exists desk_join_events_desk_time_idx on public.desk_join_events (desk_id, joined_at desc);
+create index if not exists desk_join_events_user_time_idx on public.desk_join_events (user_id, joined_at desc);
+create index if not exists desk_join_events_time_idx on public.desk_join_events (joined_at desc);
+
+-- One-time backfill from the old desk_joins table so history isn't empty
+-- (only runs while the events table is still empty).
+insert into public.desk_join_events (desk_id, user_id, joined_at, access_type)
+select desk_id, user_id, joined_at, 'legacy'
+from public.desk_joins
+where not exists (select 1 from public.desk_join_events);
+
+update public.users u
+set total_joins = s.c, last_join_at = s.m
+from (
+  select user_id, count(*) as c, max(joined_at) as m
+  from public.desk_join_events
+  group by user_id
+) s
+where u.id = s.user_id and u.total_joins = 0;
+
+-- ---- access_grants: free access given by the admin ----
+-- Keyed by EMAIL (lowercase) so you can grant access even before the
+-- person has signed up. scope 'all' = every desk, 'desk' = one desk only.
+create table if not exists public.access_grants (
+  id uuid primary key default gen_random_uuid(),
+  email text not null,
+  scope text not null check (scope in ('all', 'desk')),
+  desk_id uuid references public.desks (id) on delete cascade,
+  note text,
+  granted_at timestamptz not null default now(),
+  constraint access_grants_scope_desk check (
+    (scope = 'all' and desk_id is null) or (scope = 'desk' and desk_id is not null)
+  )
+);
+
+create unique index if not exists access_grants_all_unique on public.access_grants (email) where scope = 'all';
+create unique index if not exists access_grants_desk_unique on public.access_grants (email, desk_id) where scope = 'desk';
+create index if not exists access_grants_email_idx on public.access_grants (email);
+
+-- ---- payments: Razorpay orders/payments ----
+create table if not exists public.payments (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users (id) on delete cascade,
+  razorpay_order_id text not null unique,
+  razorpay_payment_id text,
+  amount_paise integer not null,
+  currency text not null default 'INR',
+  days integer not null,
+  status text not null default 'created' check (status in ('created', 'paid', 'failed')),
+  created_at timestamptz not null default now(),
+  paid_at timestamptz,
+  starts_at timestamptz,
+  expires_at timestamptz
+);
+
+create index if not exists payments_user_idx on public.payments (user_id, created_at desc);

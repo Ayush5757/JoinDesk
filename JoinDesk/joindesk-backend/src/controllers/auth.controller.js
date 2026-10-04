@@ -57,7 +57,7 @@ export async function googleLogin(req, res) {
         {
           google_id: profile.sub,
           name: profile.name || profile.email?.split("@")[0] || "Anonymous",
-          email: profile.email,
+          email: profile.email ? profile.email.toLowerCase() : profile.email,
           avatar_url: profile.picture || null,
         },
         { onConflict: "google_id" }

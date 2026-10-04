@@ -1,8 +1,21 @@
 import { supabaseAdmin } from "../config/supabase.js";
 import { notifySpecialUsersOfNewDesk } from "../services/push.js";
+import { loadAccessContext, evaluateAccess, paymentInfo } from "../services/access.js";
 
 const MEETING_LINK_REGEX = /^https?:\/\/.+\..+/i; // any platform: Google Meet, Zoom, Teams, etc.
 const DESK_LIFESPAN_DAYS = 15;
+
+/**
+ * The meeting link is the thing the paywall protects, so desk LISTS never
+ * include it any more — it's only handed out by POST /api/desks/:id/join
+ * after the access check passes. (Owners and admins still get it back on
+ * their own desks so they can edit it.)
+ */
+function withoutLink(row) {
+  if (!row) return row;
+  const { google_meet_link, ...rest } = row;
+  return rest;
+}
 
 /**
  * Returns the list of user ids whose desks should be hidden from `userId`
@@ -179,7 +192,7 @@ export async function getDesks(req, res) {
     const total = count ?? 0;
     const hasMore = offset + data.length < total;
 
-    return res.status(200).json({ desks: data, hasMore, total });
+    return res.status(200).json({ desks: data.map(withoutLink), hasMore, total });
   } catch (err) {
     console.error("getDesks error:", err);
     return res.status(500).json({ error: "Failed to fetch desks" });
@@ -227,7 +240,7 @@ export async function getSpecialDesks(req, res) {
     const total = count ?? 0;
     const hasMore = offset + data.length < total;
 
-    return res.status(200).json({ desks: data, hasMore, total });
+    return res.status(200).json({ desks: data.map(withoutLink), hasMore, total });
   } catch (err) {
     console.error("getSpecialDesks error:", err);
     return res.status(500).json({ error: "Failed to fetch special desks" });
@@ -422,7 +435,11 @@ export async function getUserDesks(req, res) {
     const total = count ?? 0;
     const hasMore = offset + data.length < total;
 
-    return res.status(200).json({ desks: data, hasMore, total });
+    return res.status(200).json({
+      desks: isOwner ? data : data.map(withoutLink),
+      hasMore,
+      total,
+    });
   } catch (err) {
     console.error("getUserDesks error:", err);
     return res.status(500).json({ error: "Failed to fetch user's desks" });
@@ -431,8 +448,14 @@ export async function getUserDesks(req, res) {
 
 /**
  * POST /api/desks/:id/join
- * Records that the current user joined this desk (clicked "Join via Google
- * Meet"). Idempotent — joining the same desk twice is a no-op.
+ * Called when someone clicks "Join Meeting". In order:
+ *   1. Access check (free grant / paid month / free trial). If they have
+ *      none of those -> 402 and the frontend shows the payment screen.
+ *   2. Logs the visit: one row in desk_join_events EVERY time (this feeds
+ *      the admin analytics), plus the old unique desk_joins row used by the
+ *      "People who joined" list, plus the user's activity counters.
+ *   3. Returns the meeting link (it is not included in desk lists).
+ * A desk's own creator is let straight in free (and their visit is logged too).
  */
 export async function joinDesk(req, res) {
   try {
@@ -440,7 +463,7 @@ export async function joinDesk(req, res) {
 
     const { data: desk, error: deskError } = await supabaseAdmin
       .from("desks")
-      .select("id")
+      .select("id, creator_id, google_meet_link")
       .eq("id", id)
       .single();
 
@@ -448,16 +471,64 @@ export async function joinDesk(req, res) {
       return res.status(404).json({ error: "Desk not found" });
     }
 
-    const { error } = await supabaseAdmin
-      .from("desk_joins")
-      .upsert(
-        { desk_id: id, user_id: req.user.id },
-        { onConflict: "desk_id,user_id", ignoreDuplicates: true }
-      );
+    // The desk's own creator is never charged, but their visit is still
+    // logged so the admin's numbers match what really happened.
+    const isOwner = desk.creator_id === req.user.id;
+    let accessType = "owner";
 
-    if (error) throw error;
+    if (!isOwner) {
+      const ctx = await loadAccessContext(req.user.id);
+      const access = evaluateAccess(ctx, desk.id);
 
-    return res.status(200).json({ joined: true });
+      if (!access.allowed) {
+        return res.status(402).json({
+          error: "payment_required",
+          code: "PAYMENT_REQUIRED",
+          ...paymentInfo(),
+        });
+      }
+      accessType = access.type;
+
+      // desk_joins (one row per person) feeds the public "People who joined" list.
+      const { error: joinError } = await supabaseAdmin
+        .from("desk_joins")
+        .upsert(
+          { desk_id: id, user_id: req.user.id },
+          { onConflict: "desk_id,user_id", ignoreDuplicates: true }
+        );
+      if (joinError) throw joinError;
+    }
+
+    const nowIso = new Date().toISOString();
+
+    // desk_join_events = every single visit (feeds the admin analytics).
+    const { error: eventError } = await supabaseAdmin.from("desk_join_events").insert({
+      desk_id: id,
+      user_id: req.user.id,
+      joined_at: nowIso,
+      access_type: accessType,
+    });
+    if (eventError) throw eventError;
+
+    // Activity counters (best-effort: never block someone from joining just
+    // because a counter update failed).
+    try {
+      const { data: row } = await supabaseAdmin
+        .from("users")
+        .select("total_joins")
+        .eq("id", req.user.id)
+        .single();
+      await supabaseAdmin
+        .from("users")
+        .update({ total_joins: (row?.total_joins || 0) + 1, last_join_at: nowIso })
+        .eq("id", req.user.id);
+    } catch (counterErr) {
+      console.error("join counter update failed (non-fatal):", counterErr);
+    }
+
+    return res
+      .status(200)
+      .json({ joined: true, meetLink: desk.google_meet_link, access: accessType });
   } catch (err) {
     console.error("joinDesk error:", err);
     return res.status(500).json({ error: "Failed to record join" });

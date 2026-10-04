@@ -22,12 +22,20 @@ import {
   RotateCcw,
   Mail,
   Megaphone,
+  BarChart3,
+  Gift,
+  Download,
+  Loader2,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { Navbar } from "@/components/joindesk/Navbar";
 import { BlockedScreen } from "@/components/joindesk/BlockedScreen";
 import { AdminDeskModal, type AdminDeskFormValues } from "@/components/joindesk/AdminDeskModal";
 import { AdminJoinersModal } from "@/components/joindesk/AdminJoinersModal";
+import { AdminAnalyticsTab } from "@/components/joindesk/AdminAnalyticsTab";
+import { AdminAccessTab } from "@/components/joindesk/AdminAccessTab";
+import { AdminUserDetailModal } from "@/components/joindesk/AdminUserDetailModal";
+import { AccessBadge, fmtDay, saveBlob, timeAgo } from "@/components/joindesk/adminShared";
 import { loginWithGoogle, logout, restoreSession, BlockedError, type AppUser } from "@/lib/auth";
 import { isAdminUnlocked, unlockAdmin, lockAdmin } from "@/lib/adminAuth";
 import { getAnnouncement, adminSetAnnouncement } from "@/lib/settings";
@@ -39,11 +47,14 @@ import {
   adminListUsers,
   adminBlockUser,
   adminUnblockUser,
+  adminDownloadUsersExport,
   adminListFeedback,
   adminUpdateFeedbackStatus,
   adminMoveSpecialDesk,
   adminSetSpecialDeskPosition,
   type AdminUser,
+  type UserSort,
+  type UserFilter,
   type AdminFeedback,
   type FeedbackStatus,
 } from "@/lib/admin";
@@ -175,7 +186,9 @@ function AdminGate() {
 }
 
 function AdminPanel({ onLock }: { onLock: () => void }) {
-  const [tab, setTab] = useState<"desks" | "users" | "feedback" | "notice">("desks");
+  const [tab, setTab] = useState<
+    "desks" | "analytics" | "access" | "users" | "feedback" | "notice"
+  >("desks");
 
   return (
     <div>
@@ -205,6 +218,28 @@ function AdminPanel({ onLock }: { onLock: () => void }) {
           }
         >
           <LayoutGrid className="h-4 w-4" /> Desks
+        </button>
+        <button
+          onClick={() => setTab("analytics")}
+          className={
+            "inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-colors " +
+            (tab === "analytics"
+              ? "bg-card shadow-soft"
+              : "text-muted-foreground hover:text-foreground")
+          }
+        >
+          <BarChart3 className="h-4 w-4" /> Analytics
+        </button>
+        <button
+          onClick={() => setTab("access")}
+          className={
+            "inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-colors " +
+            (tab === "access"
+              ? "bg-card shadow-soft"
+              : "text-muted-foreground hover:text-foreground")
+          }
+        >
+          <Gift className="h-4 w-4" /> Free access
         </button>
         <button
           onClick={() => setTab("users")}
@@ -244,6 +279,10 @@ function AdminPanel({ onLock }: { onLock: () => void }) {
       <div className="mt-6">
         {tab === "desks" ? (
           <AdminDesksTab />
+        ) : tab === "analytics" ? (
+          <AdminAnalyticsTab />
+        ) : tab === "access" ? (
+          <AdminAccessTab />
         ) : tab === "users" ? (
           <AdminUsersTab />
         ) : tab === "feedback" ? (
@@ -598,17 +637,44 @@ function AdminDesksTab() {
   );
 }
 
+const USER_SORTS: { key: UserSort; label: string }[] = [
+  { key: "newest", label: "Newest signups" },
+  { key: "most", label: "Most active" },
+  { key: "least", label: "Least active" },
+  { key: "recent", label: "Visited recently" },
+];
+
+const USER_FILTERS: { key: UserFilter; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "never", label: "Never joined (dead)" },
+  { key: "inactive", label: "Inactive 30d+" },
+  { key: "paid", label: "Paid" },
+  { key: "blocked", label: "Blocked" },
+];
+
 function AdminUsersTab() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [total, setTotal] = useState(0);
   const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<UserSort>("newest");
+  const [filter, setFilter] = useState<UserFilter>("all");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [detailUserId, setDetailUserId] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const load = async () => {
     setLoading(true);
     try {
-      const { users: rows } = await adminListUsers({ limit: 100, offset: 0, search });
+      const { users: rows, total: count } = await adminListUsers({
+        limit: 100,
+        offset: 0,
+        search,
+        sort,
+        filter,
+      });
       setUsers(rows);
+      setTotal(count);
     } catch {
       toast.error("Couldn't load users.");
     } finally {
@@ -620,7 +686,20 @@ function AdminUsersTab() {
     const handle = setTimeout(load, search ? 350 : 0);
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search]);
+  }, [search, sort, filter]);
+
+  const exportExcel = async () => {
+    setExporting(true);
+    try {
+      const blob = await adminDownloadUsersExport({ search, sort, filter });
+      saveBlob(blob, "joindesk-users.xlsx");
+      toast.success("Excel downloaded.");
+    } catch {
+      toast.error("Couldn't download the Excel file.");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const toggleBlock = async (u: AdminUser) => {
     setBusyId(u.id);
@@ -643,21 +722,71 @@ function AdminUsersTab() {
 
   return (
     <div>
-      <div className="flex max-w-xs items-center gap-2 rounded-full border border-border bg-muted/60 px-4 py-2.5">
-        <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name or email…"
-          className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-        />
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex max-w-xs flex-1 items-center gap-2 rounded-full border border-border bg-muted/60 px-4 py-2.5">
+          <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name or email…"
+            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+          />
+        </div>
+        <select
+          value={sort}
+          onChange={(e) => setSort(e.target.value as UserSort)}
+          className="rounded-full border border-border bg-card px-3 py-2.5 text-xs font-semibold"
+        >
+          {USER_SORTS.map((o) => (
+            <option key={o.key} value={o.key}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <button
+          onClick={exportExcel}
+          disabled={exporting}
+          className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-4 py-2.5 text-xs font-semibold transition-colors hover:bg-muted disabled:opacity-60"
+        >
+          {exporting ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Download className="h-3.5 w-3.5" />
+          )}
+          Excel
+        </button>
       </div>
 
-      <div className="mt-6 space-y-3">
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {USER_FILTERS.map((f) => (
+          <button
+            key={f.key}
+            onClick={() => setFilter(f.key)}
+            className={
+              "rounded-full border px-3 py-1 text-xs font-semibold transition-colors " +
+              (filter === f.key
+                ? "border-transparent bg-foreground text-background"
+                : "border-border bg-card text-muted-foreground hover:text-foreground")
+            }
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+      {!loading && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          {total} user{total === 1 ? "" : "s"}
+          {users.length < total
+            ? ` (showing first ${users.length} — use search or Excel for the rest)`
+            : ""}
+        </p>
+      )}
+
+      <div className="mt-4 space-y-3">
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading users…</p>
         ) : users.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No users match that search.</p>
+          <p className="text-sm text-muted-foreground">No users match.</p>
         ) : (
           users.map((u) => (
             <div
@@ -673,14 +802,33 @@ function AdminUsersTab() {
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">{u.name}</p>
                   <p className="truncate text-xs text-muted-foreground">{u.email}</p>
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                    <AccessBadge access={u.access} />
+                    {u.is_blocked && (
+                      <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-semibold text-destructive">
+                        Blocked
+                      </span>
+                    )}
+                    {u.total_joins === 0 ? (
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                        Never joined · signed up {fmtDay(u.created_at)}
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-muted-foreground">
+                        {u.total_joins} join{u.total_joins === 1 ? "" : "s"} · last{" "}
+                        {timeAgo(u.last_join_at)}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                {u.is_blocked && (
-                  <span className="ml-2 shrink-0 rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-semibold text-destructive">
-                    Blocked
-                  </span>
-                )}
               </div>
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <button
+                  onClick={() => setDetailUserId(u.id)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-4 py-2 text-xs font-semibold transition-colors hover:bg-muted"
+                >
+                  <BarChart3 className="h-3.5 w-3.5" /> Details
+                </button>
                 <Link
                   to="/profile/$id"
                   params={{ id: u.id }}
@@ -715,6 +863,12 @@ function AdminUsersTab() {
           ))
         )}
       </div>
+
+      <AdminUserDetailModal
+        userId={detailUserId}
+        onClose={() => setDetailUserId(null)}
+        onChanged={load}
+      />
     </div>
   );
 }

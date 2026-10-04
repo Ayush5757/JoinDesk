@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { DeskGrid } from "./DeskGrid";
 import { JoinersModal } from "./JoinersModal";
 import { JoinDeskModal } from "./JoinDeskModal";
+import { BillingCard } from "./BillingCard";
 import { EditDeskModal, type EditDeskInput } from "./EditDeskModal";
 import {
   getProfile,
@@ -141,14 +142,20 @@ export function ProfileView({
     try {
       const updated = await setDeskHidden(desk.id, !desk.isHidden);
       setDesks((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
-      toast.success(updated.isHidden ? "Desk hidden from the dashboard." : "Desk is visible again.");
+      toast.success(
+        updated.isHidden ? "Desk hidden from the dashboard." : "Desk is visible again.",
+      );
     } catch {
       toast.error("That didn't go through. Try again.");
     }
   };
 
   if (loadingProfile) {
-    return <div className="mx-auto max-w-3xl px-4 py-16 text-sm text-muted-foreground">Loading profile…</div>;
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-16 text-sm text-muted-foreground">
+        Loading profile…
+      </div>
+    );
   }
 
   if (!profile) {
@@ -237,6 +244,8 @@ export function ProfileView({
           )}
         </div>
       </div>
+
+      {isOwner && <BillingCard />}
 
       <div className="mt-10">
         <h2 className="text-lg font-bold tracking-tight">

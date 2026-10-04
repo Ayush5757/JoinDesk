@@ -1,6 +1,7 @@
 import { adminApi } from "./adminApi";
 import { deskFromApi, type Desk, type DeskApiRow } from "./joindesk";
 import { type Joiner } from "./users";
+import { type AccessSummary } from "./billing";
 
 export type AdminUser = {
   id: string;
@@ -9,7 +10,15 @@ export type AdminUser = {
   avatar_url: string | null;
   is_blocked: boolean;
   created_at: string;
+  // Activity counters kept by the backend on every join. total_joins === 0
+  // means the person signed up but never joined anything ("dead" user).
+  total_joins: number;
+  last_join_at: string | null;
+  access: AccessSummary;
 };
+
+export type UserSort = "newest" | "most" | "least" | "recent";
+export type UserFilter = "all" | "never" | "inactive" | "paid" | "blocked";
 
 export type NewAdminDeskInput = {
   title: string;
@@ -103,12 +112,20 @@ export function adminSetSpecialDeskPosition(deskId: string, position: number) {
 }
 
 /** GET /api/admin/users — search/list users for the Block/Unblock screen. */
-export async function adminListUsers(opts: { limit: number; offset: number; search?: string }) {
+export async function adminListUsers(opts: {
+  limit: number;
+  offset: number;
+  search?: string;
+  sort?: UserSort;
+  filter?: UserFilter;
+}) {
   const params = new URLSearchParams({
     limit: String(opts.limit),
     offset: String(opts.offset),
   });
   if (opts.search?.trim()) params.set("search", opts.search.trim());
+  if (opts.sort) params.set("sort", opts.sort);
+  if (opts.filter && opts.filter !== "all") params.set("filter", opts.filter);
 
   return adminApi.get<{ users: AdminUser[]; hasMore: boolean; total: number }>(
     `/api/admin/users?${params.toString()}`,
@@ -185,4 +202,176 @@ export async function adminUpdateFeedbackStatus(feedbackId: string, status: Feed
     { status },
   );
   return feedback;
+}
+
+// =========================
+// Join analytics (per desk / per user) + Excel export
+// =========================
+
+export type DeskReportUser = {
+  id: string;
+  name: string;
+  email: string;
+  avatar_url: string | null;
+  is_blocked: boolean;
+  joinsInMonth: number;
+  daysActiveInMonth: number;
+  totalJoins: number;
+  firstJoinAt: string;
+  lastJoinAt: string;
+  freeAccess: "all" | "desk" | null;
+};
+
+export type DeskReport = {
+  desk: {
+    id: string;
+    title: string;
+    topic: string;
+    is_special: boolean;
+    created_at: string;
+    creator_name: string;
+  };
+  month: string;
+  totals: {
+    joinsInMonth: number;
+    uniqueUsersInMonth: number;
+    activeDays: number;
+    allTimeJoins: number;
+    allTimeUniqueUsers: number;
+  };
+  daily: { date: string; joins: number; uniqueUsers: number }[];
+  users: DeskReportUser[];
+};
+
+export function adminDeskAnalytics(deskId: string, month: string) {
+  return adminApi.get<DeskReport>(
+    `/api/admin/desks/${deskId}/analytics?month=${encodeURIComponent(month)}`,
+  );
+}
+
+export function adminDownloadDeskExport(deskId: string, month: string) {
+  return adminApi.getBlob(`/api/admin/desks/${deskId}/export?month=${encodeURIComponent(month)}`);
+}
+
+export function adminDownloadUsersExport(opts: {
+  search?: string;
+  sort?: UserSort;
+  filter?: UserFilter;
+}) {
+  const params = new URLSearchParams();
+  if (opts.search?.trim()) params.set("search", opts.search.trim());
+  if (opts.sort) params.set("sort", opts.sort);
+  if (opts.filter && opts.filter !== "all") params.set("filter", opts.filter);
+  return adminApi.getBlob(`/api/admin/users/export?${params.toString()}`);
+}
+
+export type UserGrant = {
+  id: string;
+  scope: "all" | "desk";
+  deskId: string | null;
+  deskTitle: string | null;
+  note: string | null;
+  granted_at: string;
+};
+
+export type UserActivity = {
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    avatar_url: string | null;
+    created_at: string;
+    is_blocked: boolean;
+  };
+  month: string;
+  totals: {
+    joinsInMonth: number;
+    daysActiveInMonth: number;
+    desksJoinedInMonth: number;
+    allTimeJoins: number;
+    firstJoinAt: string | null;
+    lastJoinAt: string | null;
+    daysSinceLast: number | null;
+  };
+  perDesk: {
+    deskId: string;
+    title: string;
+    isSpecial: boolean;
+    joinsInMonth: number;
+    daysActiveInMonth: number;
+    totalJoins: number;
+    lastJoinAt: string;
+  }[];
+  log: { joined_at: string; deskId: string; deskTitle: string; access_type: string | null }[];
+  access: AccessSummary;
+  grants: UserGrant[];
+  payments: {
+    amount_paise: number;
+    paid_at: string | null;
+    starts_at: string | null;
+    expires_at: string | null;
+    days: number;
+  }[];
+};
+
+export function adminUserActivity(userId: string, month: string) {
+  return adminApi.get<UserActivity>(
+    `/api/admin/users/${userId}/activity?month=${encodeURIComponent(month)}`,
+  );
+}
+
+// =========================
+// Free access (per desk or all desks)
+// =========================
+
+export type AccessGrant = {
+  id: string;
+  email: string;
+  scope: "all" | "desk";
+  deskId: string | null;
+  deskTitle: string | null;
+  note: string | null;
+  granted_at: string;
+  // null = this email hasn't signed up yet
+  user: {
+    id: string;
+    name: string;
+    avatar_url: string | null;
+    total_joins: number;
+    last_join_at: string | null;
+  } | null;
+  recentJoins: number;
+  inactive: boolean;
+};
+
+export function adminListGrants(opts: {
+  search?: string;
+  deskId?: string;
+  scope?: "all" | "desk";
+}) {
+  const params = new URLSearchParams({ limit: "200" });
+  if (opts.search?.trim()) params.set("search", opts.search.trim());
+  if (opts.deskId) params.set("desk_id", opts.deskId);
+  if (opts.scope) params.set("scope", opts.scope);
+  return adminApi.get<{ grants: AccessGrant[]; total: number; inactiveDays: number }>(
+    `/api/admin/access?${params.toString()}`,
+  );
+}
+
+export function adminCreateGrant(input: {
+  email: string;
+  scope: "all" | "desk";
+  deskId?: string;
+  note?: string;
+}) {
+  return adminApi.post<{ grant: { id: string }; alreadyExisted?: boolean }>("/api/admin/access", {
+    email: input.email,
+    scope: input.scope,
+    desk_id: input.deskId,
+    note: input.note,
+  });
+}
+
+export function adminDeleteGrant(grantId: string) {
+  return adminApi.delete<{ deleted: boolean }>(`/api/admin/access/${grantId}`);
 }

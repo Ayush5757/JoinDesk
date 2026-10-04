@@ -351,41 +351,6 @@ export async function updateFeedbackStatus(req, res) {
 }
 
 /**
- * GET /api/admin/users
- * Search/list users for the Block/Unblock screen.
- * Query: search (name/email), limit, offset.
- */
-export async function listUsers(req, res) {
-  try {
-    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
-    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
-    const search =
-      typeof req.query.search === "string" ? req.query.search.trim().replace(/[%,()]/g, "") : "";
-
-    let query = supabaseAdmin
-      .from("users")
-      .select("id, name, email, avatar_url, is_blocked, created_at", { count: "exact" })
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
-
-    if (search) {
-      query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%`);
-    }
-
-    const { data, error, count } = await query;
-    if (error) throw error;
-
-    const total = count ?? 0;
-    const hasMore = offset + data.length < total;
-
-    return res.status(200).json({ users: data, hasMore, total });
-  } catch (err) {
-    console.error("admin listUsers error:", err);
-    return res.status(500).json({ error: "Failed to fetch users" });
-  }
-}
-
-/**
  * POST /api/admin/users/:id/block
  * Platform-wide ban. The user is signed out of every future request
  * (requireAuth re-checks is_blocked) and can't log back in

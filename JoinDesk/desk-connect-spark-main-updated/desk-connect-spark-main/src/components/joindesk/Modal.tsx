@@ -5,16 +5,21 @@ export function Modal({
   open,
   onClose,
   children,
+  wide = false,
 }: {
   open: boolean;
   onClose: () => void;
   children: ReactNode;
+  // Wider card for data-heavy screens (admin user details).
+  wide?: boolean;
 }) {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-foreground/25 p-4 backdrop-blur-md duration-200 animate-in fade-in sm:items-center">
       <div className="absolute inset-0" onClick={onClose} aria-hidden="true" />
-      <div className="relative flex max-h-[90vh] w-full max-w-lg flex-col rounded-3xl border border-border bg-card shadow-glow duration-300 animate-in zoom-in-95 slide-in-from-bottom-4">
+      <div
+        className={`relative flex max-h-[90vh] w-full flex-col ${wide ? "max-w-3xl" : "max-w-lg"} rounded-3xl border border-border bg-card shadow-glow duration-300 animate-in zoom-in-95 slide-in-from-bottom-4`}
+      >
         <button
           onClick={onClose}
           aria-label="Close"

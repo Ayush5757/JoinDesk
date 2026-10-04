@@ -10,6 +10,7 @@ import pushRoutes from "./routes/push.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
 import feedbackRoutes from "./routes/feedback.routes.js";
 import settingsRoutes from "./routes/settings.routes.js";
+import billingRoutes from "./routes/billing.routes.js";
 
 const app = express();
 
@@ -23,7 +24,15 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json());
+// rawBody is kept ONLY so the Razorpay webhook signature can be verified
+// (the signature is computed over the exact bytes Razorpay sent).
+app.use(
+  express.json({
+    verify: (req, res, buf) => {
+      req.rawBody = buf;
+    },
+  })
+);
 app.use(morgan("dev"));
 
 app.get("/health", (req, res) => res.json({ ok: true }));
@@ -34,6 +43,7 @@ app.use("/api/users", usersRoutes);
 app.use("/api/push", pushRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/feedback", feedbackRoutes);
+app.use("/api/billing", billingRoutes);
 app.use("/api", settingsRoutes);
 
 // 404

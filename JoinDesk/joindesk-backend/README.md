@@ -264,3 +264,62 @@ Any Node 18+ host works (Render, Railway, Fly.io, a VPS...). Set the same
 env vars from `.env.example`, add your deployed frontend origin to both
 `FRONTEND_URL` here and **Authorized JavaScript origins** on the Google
 OAuth client, and point the frontend's `VITE_API_URL` at this backend.
+
+---
+
+## Paywall, free access & join analytics
+
+### 1. One-time setup
+
+1. **Database** – open Supabase → SQL Editor and run the block at the bottom of
+   `schema.sql` titled *"Feature update: Join tracking, Free access, Razorpay payments"*.
+   It is safe to run more than once. It also back-fills your existing joins into the new
+   history table.
+2. **Install** – `npm install` (adds `exceljs` for Excel export).
+3. **`.env`** – copy the new keys from `.env.example`:
+
+| Key | What it does |
+| --- | --- |
+| `PAYWALL_ENABLED` | `false` = everything stays free (nothing enforced). Set `true` only after Razorpay keys are in. |
+| `TRIAL_DAYS` | Free trial for every user, counted from signup. `0` = no trial. |
+| `SUBSCRIPTION_PRICE_INR` | Price of one period in rupees (`149`, `199`, …). Change anytime, restart server. |
+| `SUBSCRIPTION_DAYS` | Days of full-website access one payment gives (default `30`). |
+| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | Razorpay Dashboard → Account & Settings → API Keys. Start with **Test** keys. |
+| `RAZORPAY_WEBHOOK_SECRET` | Razorpay → Settings → Webhooks → add `https://<backend>/api/billing/webhook`, event **payment.captured**, paste your secret here. Safety net if a user closes the tab right after paying. |
+| `ANALYTICS_TZ_OFFSET_MINUTES` | Timezone for daily/hourly counts. `330` = IST. |
+| `INACTIVE_DAYS` | A free-access person with no visits in this many days is flagged "not using it". |
+
+### 2. How access works (checked on the server, in this order)
+
+1. `PAYWALL_ENABLED=false` → everyone can join.
+2. Admin gave the email **free access to all desks** → can join.
+3. Admin gave the email **free access to this desk** → can join this desk.
+4. Has an active paid period (`subscription_expires_at` in the future) → can join any desk.
+5. Still inside the free trial → can join.
+6. Otherwise → "Pay ₹X" screen; after paying the period starts immediately.
+
+Paying again while still subscribed **adds** the days on top of the remaining time.
+A desk's own creator is never charged for joining their own desk.
+
+The meeting link is no longer sent in desk lists; it is only returned by the join call after
+the check passes, so the paywall can't be bypassed by reading the page's network traffic.
+
+### 3. Admin panel
+
+* **Analytics** – pick a desk and a month: total joins, unique people, active days, peak hour,
+  joins per day / per hour / last 12 months, a ranked list of people (most → least active,
+  first & last join, frequent / regular / rare / not-this-month) and the join log.
+  **Download Excel** gives Summary, Users, Daily and Join Log sheets.
+* **Free access** – give an email free access to all desks or one desk, with a note. Each row
+  shows if the person is actually visiting; **"Not using it"** filters the ones to remove.
+  Works for people who haven't signed up yet (matched by email).
+* **Users** – sort by most/least active or recently visited; filters for *Never joined (dead)*,
+  *Inactive 30d+*, *Paid*, *Blocked*; status chip (paid till / trial / free / expired);
+  **Details** shows per-desk and per-day activity and lets you give/remove free access;
+  **Excel** exports the list.
+
+### 4. Testing payments
+
+Use Razorpay **Test** keys + a test UPI/card from Razorpay's docs. Set `PAYWALL_ENABLED=true`,
+use an account older than `TRIAL_DAYS`, click *Join Meeting* → payment window opens → after
+success the profile page shows *"Access active until …"*. Switch to Live keys when happy.

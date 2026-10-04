@@ -6,9 +6,13 @@ const API_URL = (import.meta.env["VITE_API_URL"] as string) || "http://localhost
 
 export class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  // The parsed JSON body of the failed response (e.g. the price info that
+  // comes back with a 402 "payment required").
+  data: unknown;
+  constructor(message: string, status: number, data: unknown = null) {
     super(message);
     this.status = status;
+    this.data = data;
   }
 }
 
@@ -30,7 +34,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const body = isJson ? await res.json() : null;
 
   if (!res.ok) {
-    throw new ApiError(body?.error || `Request failed with status ${res.status}`, res.status);
+    throw new ApiError(body?.error || `Request failed with status ${res.status}`, res.status, body);
   }
 
   return body as T;
@@ -52,7 +56,7 @@ async function requestForm<T>(path: string, method: string, formData: FormData):
   const body = isJson ? await res.json() : null;
 
   if (!res.ok) {
-    throw new ApiError(body?.error || `Request failed with status ${res.status}`, res.status);
+    throw new ApiError(body?.error || `Request failed with status ${res.status}`, res.status, body);
   }
 
   return body as T;
@@ -61,7 +65,10 @@ async function requestForm<T>(path: string, method: string, formData: FormData):
 export const api = {
   get: <T>(path: string) => request<T>(path, { method: "GET" }),
   post: <T>(path: string, data?: unknown) =>
-    request<T>(path, data !== undefined ? { method: "POST", body: JSON.stringify(data) } : { method: "POST" }),
+    request<T>(
+      path,
+      data !== undefined ? { method: "POST", body: JSON.stringify(data) } : { method: "POST" },
+    ),
   patch: <T>(path: string, data: unknown) =>
     request<T>(path, { method: "PATCH", body: JSON.stringify(data) }),
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),

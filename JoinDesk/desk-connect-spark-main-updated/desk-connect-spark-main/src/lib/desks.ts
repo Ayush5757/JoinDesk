@@ -30,9 +30,9 @@ export async function searchDesksForPicker(query: string) {
 }
 
 /**
- * Full desk search (title/description) returning complete Desk objects
- * (including meetLink) — used by the Pomodoro page's "Join a desk" picker,
- * which needs the real link to open, not just id + title.
+ * Full desk search (title/description) returning complete Desk objects —
+ * used by the Pomodoro page's "Join a desk" picker. The meeting link is NOT
+ * in the list; JoinDeskModal gets it from the join call after the access check.
  */
 export async function searchDesksFull(query: string) {
   const params = new URLSearchParams({ limit: "8" });

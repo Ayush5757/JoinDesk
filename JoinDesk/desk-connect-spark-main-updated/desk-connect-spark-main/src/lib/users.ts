@@ -68,8 +68,15 @@ export function getDeskJoiners(deskId: string, search = "") {
   return api.get<{ deskTitle: string; joiners: Joiner[] }>(`/api/desks/${deskId}/joiners${params}`);
 }
 
+/**
+ * Joins a desk. The backend checks access first (free grant / paid month /
+ * free trial) and only then returns the meeting link. Throws an ApiError
+ * with status 402 when the person has to pay.
+ */
 export function recordDeskJoin(deskId: string) {
-  return api.post<{ joined: boolean }>(`/api/desks/${deskId}/join`);
+  return api.post<{ joined: boolean; meetLink: string; access: string }>(
+    `/api/desks/${deskId}/join`,
+  );
 }
 
 export async function getUserDesksPage(userId: string, limit: number, offset: number) {

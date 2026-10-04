@@ -6,13 +6,22 @@ import {
   createDesk,
   moveSpecialDesk,
   setSpecialDeskPosition,
-  listUsers,
   blockUserAdmin,
   unblockUserAdmin,
   listFeedback,
   updateFeedbackStatus,
   setAnnouncement,
 } from "../controllers/admin.controller.js";
+import {
+  listUsers,
+  exportUsers,
+  deskAnalytics,
+  exportDesk,
+  userActivity,
+  listGrants,
+  createGrant,
+  deleteGrant,
+} from "../controllers/adminInsights.controller.js";
 
 const router = Router();
 
@@ -30,9 +39,20 @@ router.post("/desks", requireAdmin, createDesk);
 router.patch("/desks/:id/move", requireAdmin, moveSpecialDesk);
 router.patch("/desks/:id/position", requireAdmin, setSpecialDeskPosition);
 
+// Per-desk join analytics + Excel export (who joined, when, how often).
+router.get("/desks/:id/analytics", requireAdmin, deskAnalytics);
+router.get("/desks/:id/export", requireAdmin, exportDesk);
+
 router.get("/users", requireAdmin, listUsers);
+router.get("/users/export", requireAdmin, exportUsers);
+router.get("/users/:id/activity", requireAdmin, userActivity);
 router.post("/users/:id/block", requireAdmin, blockUserAdmin);
 router.post("/users/:id/unblock", requireAdmin, unblockUserAdmin);
+
+// Free access (per desk or all desks) for people who can't / needn't pay.
+router.get("/access", requireAdmin, listGrants);
+router.post("/access", requireAdmin, createGrant);
+router.delete("/access/:id", requireAdmin, deleteGrant);
 
 router.get("/feedback", requireAdmin, listFeedback);
 router.patch("/feedback/:id/status", requireAdmin, updateFeedbackStatus);

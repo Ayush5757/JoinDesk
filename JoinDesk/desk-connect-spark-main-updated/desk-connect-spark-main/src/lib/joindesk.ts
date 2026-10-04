@@ -22,7 +22,9 @@ export type DeskApiRow = {
   id: string;
   title: string;
   description: string;
-  google_meet_link: string;
+  // Not included in public desk lists any more — the link is only returned
+  // by POST /api/desks/:id/join (after the access check), or to the owner/admin.
+  google_meet_link?: string;
   creator_id: string;
   creator_name: string;
   creator_avatar: string | null;
@@ -37,7 +39,7 @@ export function deskFromApi(row: DeskApiRow): Desk {
     id: row.id,
     title: row.title,
     description: row.description ?? "",
-    meetLink: row.google_meet_link,
+    meetLink: row.google_meet_link ?? "",
     creatorId: row.creator_id,
     creatorName: row.creator_name,
     creatorAvatar: row.creator_avatar ?? "",
