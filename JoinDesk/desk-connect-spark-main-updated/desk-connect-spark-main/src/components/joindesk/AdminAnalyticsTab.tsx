@@ -58,7 +58,7 @@ export function AdminAnalyticsTab() {
         ? Date.parse(u.lastJoinAt)
         : sortKey === "total"
           ? u.totalJoins
-          : u.joinsInMonth * 1e6 + u.totalJoins;
+          : u.daysActiveInMonth * 1e6 + u.totalJoins;
     const rows = [...report.users].sort((a, b) => value(b) - value(a));
     return desc ? rows : rows.reverse();
   }, [report, sortKey, desc]);
@@ -169,9 +169,8 @@ export function AdminAnalyticsTab() {
                 <tr>
                   <Th label="#" />
                   <Th label="Person" />
-                  <Th label="This month" k="month" />
-                  <Th label="Days" />
-                  <Th label="Total" k="total" />
+                  <Th label="Days this month" k="month" />
+                  <Th label="Total days" k="total" />
                   <Th label="First join" />
                   <Th label="Last join" k="last" />
                 </tr>
@@ -179,7 +178,7 @@ export function AdminAnalyticsTab() {
               <tbody>
                 {users.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-3 py-6 text-center text-muted-foreground">
+                    <td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">
                       Nobody has joined this desk yet.
                     </td>
                   </tr>
@@ -202,8 +201,7 @@ export function AdminAnalyticsTab() {
                         </p>
                         <p className="text-[11px] text-muted-foreground">{u.email}</p>
                       </td>
-                      <td className="px-3 py-2 font-semibold">{u.joinsInMonth}</td>
-                      <td className="px-3 py-2">{u.daysActiveInMonth}</td>
+                      <td className="px-3 py-2 font-semibold">{u.daysActiveInMonth}</td>
                       <td className="px-3 py-2">{u.totalJoins}</td>
                       <td className="whitespace-nowrap px-3 py-2">{fmtDay(u.firstJoinAt)}</td>
                       <td className="whitespace-nowrap px-3 py-2">{fmtDateTime(u.lastJoinAt)}</td>

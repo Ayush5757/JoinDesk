@@ -166,7 +166,6 @@ export function buildDeskReport({ desk, events, users, freeMap = {}, monthInfo }
   const { month, startMs, endMs, days } = monthInfo;
   const daily = Array.from({ length: days }, (_, i) => ({
     date: `${month}-${String(i + 1).padStart(2, "0")}`,
-    joins: 0,
     users: new Set(),
   }));
   const perUser = new Map();
@@ -177,21 +176,18 @@ export function buildDeskReport({ desk, events, users, freeMap = {}, monthInfo }
 
     let u = perUser.get(ev.user_id);
     if (!u) {
-      u = { total: 0, month: 0, days: new Set(), firstMs: t, lastMs: t };
+      u = { allDays: new Set(), days: new Set(), firstMs: t, lastMs: t };
       perUser.set(ev.user_id, u);
     }
-    u.total += 1;
+    // A person counts ONCE per day, however many times they join that day.
+    u.allDays.add(date);
     u.firstMs = Math.min(u.firstMs, t);
     u.lastMs = Math.max(u.lastMs, t);
 
     if (t >= startMs && t < endMs) {
-      u.month += 1;
       u.days.add(date);
       const slot = daily[Number(date.slice(8, 10)) - 1];
-      if (slot) {
-        slot.joins += 1;
-        slot.users.add(ev.user_id);
-      }
+      if (slot) slot.users.add(ev.user_id);
     }
   }
 
@@ -205,9 +201,10 @@ export function buildDeskReport({ desk, events, users, freeMap = {}, monthInfo }
       email: row.email,
       avatar_url: row.avatar_url,
       is_blocked: Boolean(row.is_blocked),
-      joinsInMonth: u.month,
+      // Day-wise: number of different DAYS the person joined (not clicks).
+      joinsInMonth: u.days.size,
       daysActiveInMonth: u.days.size,
-      totalJoins: u.total,
+      totalJoins: u.allDays.size,
       firstJoinAt: new Date(u.firstMs).toISOString(),
       lastJoinAt: new Date(u.lastMs).toISOString(),
       freeAccess: freeMap[row.email?.toLowerCase()] || null,
@@ -221,7 +218,8 @@ export function buildDeskReport({ desk, events, users, freeMap = {}, monthInfo }
       (a.name || "").localeCompare(b.name || "")
   );
 
-  const dailyOut = daily.map((d) => ({ date: d.date, joins: d.joins, uniqueUsers: d.users.size }));
+  // joins per day = number of different people that day
+  const dailyOut = daily.map((d) => ({ date: d.date, joins: d.users.size, uniqueUsers: d.users.size }));
 
   return {
     desk,
@@ -231,7 +229,7 @@ export function buildDeskReport({ desk, events, users, freeMap = {}, monthInfo }
       joinsInMonth: dailyOut.reduce((n, d) => n + d.joins, 0),
       uniqueUsersInMonth: userRows.filter((r) => r.joinsInMonth > 0).length,
       activeDays: dailyOut.filter((d) => d.joins > 0).length,
-      allTimeJoins: events.length,
+      allTimeJoins: [...perUser.values()].reduce((n, u) => n + u.allDays.size, 0),
       allTimeUniqueUsers: perUser.size,
     },
     daily: dailyOut,
@@ -249,7 +247,6 @@ export function buildUserActivity({ user, events, desks, monthInfo, now = Date.n
   }));
   const perDesk = new Map();
   const log = [];
-  let monthJoins = 0;
   const activeDates = new Set();
 
   for (const ev of events) {
@@ -257,17 +254,15 @@ export function buildUserActivity({ user, events, desks, monthInfo, now = Date.n
     const { date } = localParts(ev.joined_at);
 
     let d = perDesk.get(ev.desk_id);
-    if (!d) perDesk.set(ev.desk_id, (d = { total: 0, month: 0, days: new Set(), lastMs: t }));
-    d.total += 1;
+    if (!d) perDesk.set(ev.desk_id, (d = { allDays: new Set(), days: new Set(), lastMs: t }));
+    d.allDays.add(date); // 1 per day, however many times joined that day
     d.lastMs = Math.max(d.lastMs, t);
 
     if (t >= startMs && t < endMs) {
-      d.month += 1;
       d.days.add(date);
-      monthJoins += 1;
       activeDates.add(date);
       const slot = daily[Number(date.slice(8, 10)) - 1];
-      if (slot) slot.joins += 1;
+      if (slot) slot.joins = 1; // active that day
       log.push({
         joined_at: ev.joined_at,
         deskId: ev.desk_id,
@@ -282,9 +277,9 @@ export function buildUserActivity({ user, events, desks, monthInfo, now = Date.n
       deskId,
       title: deskMap.get(deskId)?.title || "(deleted desk)",
       isSpecial: Boolean(deskMap.get(deskId)?.is_special),
-      joinsInMonth: d.month,
+      joinsInMonth: d.days.size,
       daysActiveInMonth: d.days.size,
-      totalJoins: d.total,
+      totalJoins: d.allDays.size,
       lastJoinAt: new Date(d.lastMs).toISOString(),
     }))
     .sort((a, b) => b.joinsInMonth - a.joinsInMonth || b.totalJoins - a.totalJoins);
@@ -295,10 +290,10 @@ export function buildUserActivity({ user, events, desks, monthInfo, now = Date.n
     user,
     month,
     totals: {
-      joinsInMonth: monthJoins,
+      joinsInMonth: activeDates.size,
       daysActiveInMonth: activeDates.size,
       desksJoinedInMonth: perDeskOut.filter((d) => d.joinsInMonth > 0).length,
-      allTimeJoins: events.length,
+      allTimeJoins: new Set(events.map((e) => `${e.desk_id}|${localParts(e.joined_at).date}`)).size,
       firstJoinAt: events.length ? events[0].joined_at : null,
       lastJoinAt: lastMs ? new Date(lastMs).toISOString() : null,
       daysSinceLast: lastMs ? Math.floor((now - lastMs) / DAY_MS) : null,

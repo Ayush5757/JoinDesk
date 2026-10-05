@@ -53,10 +53,10 @@ export async function deskReportToWorkbook(report, deskEvents, usersById) {
     ["Desk", report.desk.title],
     ["Type", report.desk.is_special ? "Special" : "Normal"],
     ["Month", report.month],
-    ["Joins this month", t.joinsInMonth],
+    ["Joins this month (1 per person per day)", t.joinsInMonth],
     ["Unique people this month", t.uniqueUsersInMonth],
     ["Days with at least one join", t.activeDays],
-    ["All-time joins", t.allTimeJoins],
+    ["All-time joins (1 per person per day)", t.allTimeJoins],
     ["All-time unique people", t.allTimeUniqueUsers],
   ].forEach(([k, v]) => summary.addRow({ k, v }));
   styleHeader(summary);
@@ -69,9 +69,8 @@ export async function deskReportToWorkbook(report, deskEvents, usersById) {
       { header: "Rank", key: "rank", width: 7 },
       { header: "Name", key: "name", width: 24 },
       { header: "Email", key: "email", width: 32 },
-      { header: "Joins this month", key: "joinsInMonth", width: 16 },
-      { header: "Days active this month", key: "daysActiveInMonth", width: 20 },
-      { header: "All-time joins", key: "totalJoins", width: 14 },
+      { header: "Days joined this month", key: "daysActiveInMonth", width: 22 },
+      { header: "Days joined all-time", key: "totalJoins", width: 20 },
       { header: "First join", key: "first", width: 18 },
       { header: "Last join", key: "last", width: 18 },
       { header: "Free access", key: "free", width: 16 },
@@ -97,7 +96,7 @@ export async function deskReportToWorkbook(report, deskEvents, usersById) {
     "Daily",
     [
       { header: "Date", key: "date", width: 14 },
-      { header: "Joins", key: "joins", width: 10 },
+      { header: "Joins (people)", key: "joins", width: 16 },
       { header: "Unique people", key: "uniqueUsers", width: 15 },
     ],
     report.daily
@@ -174,4 +173,3 @@ export async function usersToWorkbook(rows, tzOffsetMinutes) {
   );
   return wb.xlsx.writeBuffer();
 }
-
