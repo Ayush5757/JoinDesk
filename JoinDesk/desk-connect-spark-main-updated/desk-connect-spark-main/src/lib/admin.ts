@@ -274,6 +274,17 @@ export type UserGrant = {
   granted_at: string;
 };
 
+export type ManualSub = {
+  id: string;
+  starts_at: string;
+  ends_at: string; // exclusive: the instant AFTER the last included day
+  amount_inr: number | null;
+  note: string | null;
+  created_at: string;
+};
+
+export type PaymentSettings = { enabled: boolean; amountInr: number; message: string };
+
 export type UserActivity = {
   user: {
     id: string;
@@ -304,6 +315,7 @@ export type UserActivity = {
   }[];
   log: { joined_at: string; deskId: string; deskTitle: string; access_type: string | null }[];
   access: AccessSummary;
+  manualSubs: ManualSub[];
   grants: UserGrant[];
   payments: {
     amount_paise: number;
@@ -374,4 +386,33 @@ export function adminCreateGrant(input: {
 
 export function adminDeleteGrant(grantId: string) {
   return adminApi.delete<{ deleted: boolean }>(`/api/admin/access/${grantId}`);
+}
+
+// =========================
+// Manual subscriptions + "how to pay" message
+// =========================
+
+/** Dates are "YYYY-MM-DD" (India time). Both start and end day are included. */
+export function adminAddSubscription(
+  userId: string,
+  input: { startDate: string; endDate: string; amountInr?: number | undefined; note?: string },
+) {
+  return adminApi.post<{ subscription: ManualSub }>(`/api/admin/users/${userId}/subscriptions`, {
+    startDate: input.startDate,
+    endDate: input.endDate,
+    amountInr: input.amountInr ?? null,
+    note: input.note ?? "",
+  });
+}
+
+export function adminDeleteSubscription(subId: string) {
+  return adminApi.delete<{ deleted: boolean }>(`/api/admin/subscriptions/${subId}`);
+}
+
+export function adminGetPaymentSettings() {
+  return adminApi.get<PaymentSettings>("/api/admin/payment-settings");
+}
+
+export function adminSavePaymentSettings(input: PaymentSettings) {
+  return adminApi.patch<PaymentSettings>("/api/admin/payment-settings", input);
 }

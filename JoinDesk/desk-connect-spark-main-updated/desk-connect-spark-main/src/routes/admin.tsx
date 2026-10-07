@@ -239,7 +239,7 @@ function AdminPanel({ onLock }: { onLock: () => void }) {
               : "text-muted-foreground hover:text-foreground")
           }
         >
-          <Gift className="h-4 w-4" /> Free access
+          <Gift className="h-4 w-4" /> Payments & access
         </button>
         <button
           onClick={() => setTab("users")}

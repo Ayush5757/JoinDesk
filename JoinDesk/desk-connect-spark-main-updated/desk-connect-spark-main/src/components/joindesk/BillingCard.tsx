@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, CreditCard, Gift, Loader2, Receipt, Sparkles } from "lucide-react";
+import { CalendarClock, CheckCircle2, CreditCard, Gift, Loader2, Receipt, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { formatDate, getBillingStatus, payForAccess, type BillingStatus } from "@/lib/billing";
 
@@ -57,7 +57,12 @@ export function BillingCard() {
     detail = "The JoinDesk team has given you free access. Enjoy!";
   } else if (access.status === "paid") {
     title = `Access active until ${formatDate(access.until)}`;
-    detail = `${access.daysLeft} day${access.daysLeft === 1 ? "" : "s"} left · all desks unlocked.`;
+    detail = `${access.daysLeft} day${access.daysLeft === 1 ? "" : "s"} left · Special desks unlocked.`;
+  } else if (access.status === "scheduled") {
+    icon = <CalendarClock className="h-5 w-5" />;
+    tone = "bg-info-soft text-info";
+    title = `Subscription starts on ${formatDate(access.until)}`;
+    detail = "You can join Special desks from that date.";
   } else if (access.status === "trial") {
     icon = <Sparkles className="h-5 w-5" />;
     tone = "bg-info-soft text-info";
@@ -67,12 +72,14 @@ export function BillingCard() {
     icon = <Gift className="h-5 w-5" />;
     tone = "bg-special-soft text-special";
     title = `Free access to ${access.freeDeskIds.length} desk${access.freeDeskIds.length === 1 ? "" : "s"}`;
-    detail = "For all other desks you need a subscription.";
+    detail = "Other Special desks need a subscription.";
   } else {
     icon = <CreditCard className="h-5 w-5" />;
     tone = "bg-destructive/10 text-destructive";
-    title = "No active access";
-    detail = `Get ${status.days} days of full access to every desk.`;
+    title = "No active subscription";
+    detail = status.message?.trim()
+      ? `Special desks need a subscription (₹${status.priceInr}). ${status.message.trim()}`
+      : `Special desks need a subscription (₹${status.priceInr}). All other desks are free.`;
   }
 
   const showPay = status.enabled && status.configured && access.status !== "free_all";
@@ -106,6 +113,24 @@ export function BillingCard() {
           </button>
         )}
       </div>
+
+      {(status.manualSubs?.length ?? 0) > 0 && (
+        <div className="mt-4 border-t border-border pt-3">
+          <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+            <Receipt className="h-3.5 w-3.5" /> My subscriptions
+          </p>
+          <ul className="mt-2 space-y-1">
+            {status.manualSubs!.map((m) => (
+              <li key={m.id} className="flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
+                <span>{m.amount_inr != null ? `₹${m.amount_inr}` : "Subscription"}</span>
+                <span>
+                  {formatDate(m.starts_at)} → {formatDate(new Date(Date.parse(m.ends_at) - 1).toISOString())}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {status.payments.length > 0 && (
         <div className="mt-4 border-t border-border pt-3">

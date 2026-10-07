@@ -1,6 +1,11 @@
 import { supabaseAdmin } from "../config/supabase.js";
 import { getBillingConfig } from "../config/billing.js";
-import { summarizeAccess } from "../services/access.js";
+import {
+  summarizeAccess,
+  loadPaymentSettings,
+  loadManualSubs,
+  loadManualSubsForUsers,
+} from "../services/access.js";
 import {
   parseMonth,
   fetchDeskEvents,
@@ -60,7 +65,7 @@ const USER_COLUMNS =
  * filter: all (default) | never (0 joins ever = "dead") | inactive (no join in
  *         INACTIVE_DAYS) | paid | blocked
  */
-function usersQuery({ search, sort, filter }) {
+function usersQuery({ search, sort, filter, paidIds = [] }) {
   const cfg = getBillingConfig();
   return () => {
     let q = supabaseAdmin.from("users").select(USER_COLUMNS, { count: "exact" });
@@ -71,7 +76,12 @@ function usersQuery({ search, sort, filter }) {
     else if (filter === "inactive") {
       const cutoff = new Date(Date.now() - cfg.inactiveDays * DAY_MS).toISOString();
       q = q.or(`last_join_at.is.null,last_join_at.lt.${cutoff}`);
-    } else if (filter === "paid") q = q.gt("subscription_expires_at", new Date().toISOString());
+    } else if (filter === "paid") {
+      const nowIso = new Date().toISOString();
+      q = paidIds.length
+        ? q.or(`subscription_expires_at.gt.${nowIso},id.in.(${paidIds.join(",")})`)
+        : q.gt("subscription_expires_at", nowIso);
+    }
     else if (filter === "blocked") q = q.eq("is_blocked", true);
 
     if (sort === "most") {
@@ -88,11 +98,31 @@ function usersQuery({ search, sort, filter }) {
 }
 
 async function decorateUsers(rows) {
-  const grants = await loadGrantsByEmail(rows.map((r) => r.email));
+  const [grants, subs, payment] = await Promise.all([
+    loadGrantsByEmail(rows.map((r) => r.email)),
+    loadManualSubsForUsers(rows.map((r) => r.id)),
+    loadPaymentSettings(),
+  ]);
   return rows.map((u) => ({
     ...u,
-    access: summarizeAccess({ user: u, grants: grants.get((u.email || "").toLowerCase()) || [] }),
+    access: summarizeAccess({
+      user: u,
+      grants: grants.get((u.email || "").toLowerCase()) || [],
+      manualSubs: subs.get(u.id) || [],
+      payment,
+    }),
   }));
+}
+
+/** ids of people who are inside a manual subscription right now. */
+async function activeManualUserIds() {
+  const nowIso = new Date().toISOString();
+  const { data } = await supabaseAdmin
+    .from("manual_subscriptions")
+    .select("user_id")
+    .lte("starts_at", nowIso)
+    .gt("ends_at", nowIso);
+  return [...new Set((data || []).map((r) => r.user_id))];
 }
 
 /**
@@ -107,6 +137,7 @@ export async function listUsers(req, res) {
       search: cleanSearch(req.query.search),
       sort: req.query.sort,
       filter: req.query.filter,
+      paidIds: req.query.filter === "paid" ? await activeManualUserIds() : [],
     });
 
     const { data, error, count } = await build().range(offset, offset + limit - 1);
@@ -128,6 +159,7 @@ export async function exportUsers(req, res) {
       search: cleanSearch(req.query.search),
       sort: req.query.sort,
       filter: req.query.filter,
+      paidIds: req.query.filter === "paid" ? await activeManualUserIds() : [],
     });
 
     const rows = [];
@@ -273,9 +305,12 @@ export async function userActivity(req, res) {
       monthInfo,
     });
 
+    const [manualSubs, payment] = await Promise.all([loadManualSubs(id), loadPaymentSettings()]);
+
     return res.status(200).json({
       ...activity,
-      access: summarizeAccess({ user, grants }),
+      access: summarizeAccess({ user, grants, manualSubs, payment }),
+      manualSubs,
       grants: grants.map((g) => ({
         id: g.id,
         scope: g.scope,

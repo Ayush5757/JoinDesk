@@ -23,6 +23,13 @@ import {
   deleteGrant,
 } from "../controllers/adminInsights.controller.js";
 
+import {
+  createManualSub,
+  deleteManualSub,
+  getPaymentSettings,
+  updatePaymentSettings,
+} from "../controllers/adminSubscriptions.controller.js";
+
 const router = Router();
 
 // Unlocking needs a normal login (requireAuth) plus the admin password.
@@ -53,6 +60,13 @@ router.post("/users/:id/unblock", requireAdmin, unblockUserAdmin);
 router.get("/access", requireAdmin, listGrants);
 router.post("/access", requireAdmin, createGrant);
 router.delete("/access/:id", requireAdmin, deleteGrant);
+
+// Manual subscriptions (user paid by UPI/PhonePe -> admin adds start & end date)
+// and the "how to pay" message shown to people without access.
+router.post("/users/:id/subscriptions", requireAdmin, createManualSub);
+router.delete("/subscriptions/:id", requireAdmin, deleteManualSub);
+router.get("/payment-settings", requireAdmin, getPaymentSettings);
+router.patch("/payment-settings", requireAdmin, updatePaymentSettings);
 
 router.get("/feedback", requireAdmin, listFeedback);
 router.patch("/feedback/:id/status", requireAdmin, updateFeedbackStatus);

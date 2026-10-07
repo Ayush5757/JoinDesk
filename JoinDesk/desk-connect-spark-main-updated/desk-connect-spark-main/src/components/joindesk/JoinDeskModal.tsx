@@ -5,12 +5,7 @@ import { Modal } from "./Modal";
 import { relativeTime, type Desk } from "@/lib/joindesk";
 import { recordDeskJoin } from "@/lib/users";
 import { ApiError } from "@/lib/api";
-import {
-  formatDate,
-  paymentInfoFromError,
-  payForAccess,
-  type PaymentRequiredInfo,
-} from "@/lib/billing";
+import { formatDate, paymentInfoFromError, type PaymentRequiredInfo } from "@/lib/billing";
 
 export function JoinDeskModal({
   open,
@@ -23,7 +18,6 @@ export function JoinDeskModal({
 }) {
   const [agreed, setAgreed] = useState(false);
   const [joining, setJoining] = useState(false);
-  const [paying, setPaying] = useState(false);
   // Set when the backend answers 402: this person has no free access, no
   // active paid month and no trial left — show the payment panel.
   const [paywall, setPaywall] = useState<PaymentRequiredInfo | null>(null);
@@ -33,7 +27,6 @@ export function JoinDeskModal({
       setAgreed(false);
       setPaywall(null);
       setJoining(false);
-      setPaying(false);
     }
   }, [open, desk?.id]);
 
@@ -71,24 +64,6 @@ export function JoinDeskModal({
     }
   };
 
-  const pay = async () => {
-    if (paying) return;
-    setPaying(true);
-    try {
-      const access = await payForAccess();
-      if (access) {
-        setPaywall(null);
-        toast.success(
-          `Payment successful — full access active until ${formatDate(access.until)}. Tap Join Meeting.`,
-        );
-      }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Payment didn't go through. Try again.");
-    } finally {
-      setPaying(false);
-    }
-  };
-
   return (
     <Modal open={open} onClose={onClose}>
       {desk.isSpecial ? (
@@ -123,32 +98,41 @@ export function JoinDeskModal({
 
       {paywall ? (
         <div className="mt-5 rounded-2xl border border-primary/25 bg-primary/10 p-4">
-          <p className="text-sm font-bold">
-            {paywall.trialDays > 0 ? "Your free trial has ended" : "Subscription required"}
+          <p className="flex items-center gap-2 text-sm font-bold">
+            <CreditCard className="h-4 w-4" />
+            {paywall.nextStartsAt
+              ? `Your subscription starts on ${formatDate(paywall.nextStartsAt)}`
+              : paywall.lastEndedAt
+                ? "Your subscription has ended"
+                : "Subscription required"}
           </p>
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-            Get {paywall.days} days of full access to every desk — special and regular — with one
-            payment. UPI, cards and netbanking all work.
+            {paywall.nextStartsAt
+              ? "You can join this Special desk from that date."
+              : paywall.lastEndedAt
+                ? `It ended on ${formatDate(new Date(Date.parse(paywall.lastEndedAt) - 1).toISOString())}. Pay again to keep joining Special desks.`
+                : "Pay to join Special desks."}
           </p>
-          <button
-            onClick={pay}
-            disabled={paying}
-            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-gradient px-5 py-3 text-sm font-semibold text-primary-foreground shadow-soft transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60"
-          >
-            {paying ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <CreditCard className="h-4 w-4" />
-            )}
-            {paying
-              ? "Opening payment…"
-              : paywall.priceInr > 0
-                ? `Pay ₹${paywall.priceInr} · ${paywall.days} days access`
-                : "Pay & unlock access"}
-          </button>
-          <p className="mt-2 text-center text-[11px] text-muted-foreground">
-            Secure payment by Razorpay. Access starts the moment you pay.
-          </p>
+          {!paywall.nextStartsAt && (
+            <>
+              {paywall.priceInr > 0 && (
+                <p className="mt-3 text-2xl font-bold tracking-tight">
+                  ₹{paywall.priceInr}
+                  <span className="ml-1 text-xs font-medium text-muted-foreground">
+                    / {paywall.days} days
+                  </span>
+                </p>
+              )}
+              {paywall.message.trim() && (
+                <p className="mt-3 whitespace-pre-line rounded-xl bg-card/70 p-3 text-xs leading-relaxed">
+                  {paywall.message}
+                </p>
+              )}
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                Your access is turned on by the team after they confirm your payment.
+              </p>
+            </>
+          )}
         </div>
       ) : (
         <>

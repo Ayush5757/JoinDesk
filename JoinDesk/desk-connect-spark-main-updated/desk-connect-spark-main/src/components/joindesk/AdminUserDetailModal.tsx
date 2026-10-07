@@ -1,20 +1,25 @@
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, Gift, Loader2, Trash2 } from "lucide-react";
+import { AlertTriangle, CalendarCheck, Gift, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Modal } from "./Modal";
 import {
   AccessBadge,
   NumberRow,
   ACCESS_TYPE_LABEL,
+  addDaysStr,
   currentMonth,
+  inclusiveDays,
+  todayIst,
   fmtDateTime,
   fmtDay,
   timeAgo,
   useAdminDeskOptions,
 } from "./adminShared";
 import {
+  adminAddSubscription,
   adminCreateGrant,
   adminDeleteGrant,
+  adminDeleteSubscription,
   adminUserActivity,
   type UserActivity,
 } from "@/lib/admin";
@@ -40,6 +45,12 @@ export function AdminUserDetailModal({
   const [deskPick, setDeskPick] = useState("");
   const { options: deskOptions } = useAdminDeskOptions();
 
+  // ---- manual subscription form (user paid on PhonePe/UPI -> add dates)
+  const [subStart, setSubStart] = useState(todayIst());
+  const [subEnd, setSubEnd] = useState(addDaysStr(todayIst(), 29));
+  const [subAmount, setSubAmount] = useState("");
+  const [subNote, setSubNote] = useState("");
+
   const load = useCallback(async () => {
     if (!userId) return;
     setLoading(true);
@@ -58,6 +69,21 @@ export function AdminUserDetailModal({
       load();
     }
   }, [userId, load]);
+
+  // Renewing: suggest the day after the latest end date (or today if that's past).
+  useEffect(() => {
+    if (!data) return;
+    const today = todayIst();
+    const lastEnd = data.manualSubs
+      .map((m) => lastDay(m.ends_at))
+      .sort()
+      .pop();
+    const start = lastEnd && addDaysStr(lastEnd, 1) > today ? addDaysStr(lastEnd, 1) : today;
+    setSubStart(start);
+    setSubEnd(addDaysStr(start, 29));
+    // only when a different person's data arrives
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.user.id, data?.manualSubs.length]);
 
   if (!userId) return null;
 
@@ -91,6 +117,24 @@ export function AdminUserDetailModal({
       await adminCreateGrant({ email: data.user.email, scope: "desk", deskId: deskPick });
       setDeskPick("");
     }, "Free access to that desk given.");
+
+  const addSub = () =>
+    data &&
+    run(async () => {
+      const amount = subAmount.trim() === "" ? undefined : Number(subAmount);
+      await adminAddSubscription(data.user.id, {
+        startDate: subStart,
+        endDate: subEnd,
+        amountInr: amount,
+        note: subNote,
+      });
+      setSubAmount("");
+      setSubNote("");
+    }, "Subscription saved.");
+
+  const removeSub = (id: string) => run(() => adminDeleteSubscription(id), "Subscription removed.");
+
+  const subDays = inclusiveDays(subStart, subEnd);
 
   const removeGrant = (id: string) => run(() => adminDeleteGrant(id), "Free access removed.");
 
@@ -149,6 +193,129 @@ export function AdminUserDetailModal({
               </span>
             </div>
           )}
+
+          {/* Manual subscription */}
+          <section className="rounded-2xl border border-border p-4">
+            <h3 className="flex items-center gap-2 text-sm font-bold">
+              <CalendarCheck className="h-4 w-4" /> Subscription (Special desks)
+            </h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              After they pay on PhonePe / UPI, pick the start and end date. They can join Special
+              desks from the start date until the end of the end date (both days included).
+            </p>
+
+            {data.manualSubs.length > 0 && (
+              <ul className="mt-3 space-y-2">
+                {data.manualSubs.map((m) => {
+                  const now = Date.now();
+                  const live = Date.parse(m.starts_at) <= now && now < Date.parse(m.ends_at);
+                  const upcoming = Date.parse(m.starts_at) > now;
+                  return (
+                    <li
+                      key={m.id}
+                      className="flex items-center justify-between gap-3 rounded-xl bg-muted/50 px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold">
+                          {fmtDay(m.starts_at)} → {fmtDay(lastDay(m.ends_at) + "T00:00:00+05:30")}
+                          <span
+                            className={
+                              "ml-2 rounded-full px-2 py-0.5 text-[10px] font-semibold " +
+                              (live
+                                ? "bg-emerald-500/10 text-emerald-600"
+                                : upcoming
+                                  ? "bg-info-soft text-info"
+                                  : "bg-muted text-muted-foreground")
+                            }
+                          >
+                            {live ? "Active" : upcoming ? "Upcoming" : "Ended"}
+                          </span>
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {inclusiveDays(todayStr(m.starts_at), lastDay(m.ends_at))} days
+                          {m.amount_inr != null ? ` · ₹${m.amount_inr}` : ""}
+                          {m.note ? ` · ${m.note}` : ""}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => removeSub(m.id)}
+                        disabled={busy}
+                        className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-destructive/30 bg-destructive/10 px-3 py-1.5 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/20 disabled:opacity-60"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" /> Remove
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <label className="text-[11px] font-semibold text-muted-foreground">
+                Start date
+                <input
+                  type="date"
+                  value={subStart}
+                  onChange={(e) => e.target.value && setSubStart(e.target.value)}
+                  className="mt-1 block w-full rounded-full border border-border bg-card px-3 py-2 text-xs font-normal text-foreground"
+                />
+              </label>
+              <label className="text-[11px] font-semibold text-muted-foreground">
+                End date
+                <input
+                  type="date"
+                  value={subEnd}
+                  min={subStart}
+                  onChange={(e) => e.target.value && setSubEnd(e.target.value)}
+                  className="mt-1 block w-full rounded-full border border-border bg-card px-3 py-2 text-xs font-normal text-foreground"
+                />
+              </label>
+              <label className="text-[11px] font-semibold text-muted-foreground">
+                Amount paid ₹ (optional)
+                <input
+                  type="number"
+                  min={0}
+                  value={subAmount}
+                  onChange={(e) => setSubAmount(e.target.value)}
+                  placeholder="149"
+                  className="mt-1 block w-full rounded-full border border-border bg-card px-3 py-2 text-xs font-normal text-foreground"
+                />
+              </label>
+              <label className="text-[11px] font-semibold text-muted-foreground">
+                Note (optional)
+                <input
+                  type="text"
+                  value={subNote}
+                  onChange={(e) => setSubNote(e.target.value)}
+                  placeholder="PhonePe, txn id…"
+                  maxLength={200}
+                  className="mt-1 block w-full rounded-full border border-border bg-card px-3 py-2 text-xs font-normal text-foreground"
+                />
+              </label>
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {[30, 60, 90].map((n) => (
+                <button
+                  key={n}
+                  onClick={() => setSubEnd(addDaysStr(subStart, n - 1))}
+                  className="rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-muted"
+                >
+                  {n} days
+                </button>
+              ))}
+              <span className="text-xs text-muted-foreground">
+                {subDays > 0 ? `= ${subDays} days` : "End date must be after start"}
+              </span>
+              <button
+                onClick={addSub}
+                disabled={busy || subDays === 0}
+                className="ml-auto rounded-full bg-brand-gradient px-5 py-2 text-xs font-semibold text-primary-foreground shadow-soft disabled:opacity-50"
+              >
+                {busy ? "Saving…" : "Save subscription"}
+              </button>
+            </div>
+          </section>
 
           {/* Access */}
           <section className="rounded-2xl border border-border p-4">
@@ -333,4 +500,14 @@ export function AdminUserDetailModal({
       )}
     </Modal>
   );
+}
+
+/** The last INCLUDED day ("YYYY-MM-DD", India time) of a subscription whose ends_at is exclusive. */
+function lastDay(endsAtIso: string) {
+  return new Date(Date.parse(endsAtIso) - 1 + 330 * 60000).toISOString().slice(0, 10);
+}
+
+/** "YYYY-MM-DD" (India time) of an ISO instant. */
+function todayStr(iso: string) {
+  return new Date(Date.parse(iso) + 330 * 60000).toISOString().slice(0, 10);
 }

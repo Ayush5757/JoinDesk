@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Gift, Loader2, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { AdminUserDetailModal } from "./AdminUserDetailModal";
+import { AdminPaymentSettings } from "./AdminPaymentSettings";
 import { fmtDay, timeAgo, useAdminDeskOptions } from "./adminShared";
 import {
   adminCreateGrant,
@@ -135,6 +136,8 @@ export function AdminAccessTab() {
 
   return (
     <div>
+      <AdminPaymentSettings />
+
       {/* Add form */}
       <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
         <h3 className="flex items-center gap-2 text-sm font-bold">

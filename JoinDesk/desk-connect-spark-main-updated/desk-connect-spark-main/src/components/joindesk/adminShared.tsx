@@ -41,6 +41,26 @@ export function currentMonth() {
   return new Date(Date.now() + 330 * 60000).toISOString().slice(0, 7);
 }
 
+/** "YYYY-MM-DD" for today in India time (for <input type="date">). */
+export function todayIst() {
+  return new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
+}
+
+/** "YYYY-MM-DD" + n days. */
+export function addDaysStr(dateStr: string, n: number) {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Whole days between two "YYYY-MM-DD" dates, both included. */
+export function inclusiveDays(start: string, end: string) {
+  const a = Date.parse(`${start}T00:00:00Z`);
+  const b = Date.parse(`${end}T00:00:00Z`);
+  if (!Number.isFinite(a) || !Number.isFinite(b) || b < a) return 0;
+  return Math.round((b - a) / 86_400_000) + 1;
+}
+
 /** Saves a downloaded Blob (e.g. the Excel export) to the user's computer. */
 export function saveBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -94,6 +114,10 @@ export function AccessBadge({ access }: { access: AccessSummary }) {
     case "paid":
       label = `Paid · till ${fmtDay(access.until)}`;
       cls = "bg-emerald-500/10 text-emerald-600";
+      break;
+    case "scheduled":
+      label = `Starts ${fmtDay(access.until)}`;
+      cls = "bg-info-soft text-info";
       break;
     case "trial":
       label = `Trial · till ${fmtDay(access.until)}`;

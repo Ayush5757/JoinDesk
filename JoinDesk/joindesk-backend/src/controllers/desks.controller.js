@@ -463,7 +463,7 @@ export async function joinDesk(req, res) {
 
     const { data: desk, error: deskError } = await supabaseAdmin
       .from("desks")
-      .select("id, creator_id, google_meet_link")
+      .select("id, creator_id, google_meet_link, is_special")
       .eq("id", id)
       .single();
 
@@ -478,13 +478,13 @@ export async function joinDesk(req, res) {
 
     if (!isOwner) {
       const ctx = await loadAccessContext(req.user.id);
-      const access = evaluateAccess(ctx, desk.id);
+      const access = evaluateAccess(ctx, desk);
 
       if (!access.allowed) {
         return res.status(402).json({
           error: "payment_required",
           code: "PAYMENT_REQUIRED",
-          ...paymentInfo(),
+          ...paymentInfo(undefined, ctx?.payment, access),
         });
       }
       accessType = access.type;

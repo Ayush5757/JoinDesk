@@ -1,6 +1,6 @@
 import { supabaseAdmin } from "../config/supabase.js";
 import { getBillingConfig } from "../config/billing.js";
-import { loadAccessContext, summarizeAccess } from "../services/access.js";
+import { loadAccessContext, loadPaymentSettings, summarizeAccess } from "../services/access.js";
 import {
   createRazorpayOrder,
   verifyCheckoutSignature,
@@ -14,15 +14,22 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * Lets the frontend know the price/trial and whether the paywall is on,
  * without hardcoding any of it in the frontend build.
  */
-export function getConfig(req, res) {
-  const cfg = getBillingConfig();
-  return res.status(200).json({
-    enabled: cfg.paywallEnabled,
-    configured: cfg.razorpayConfigured,
-    priceInr: cfg.priceInr,
-    days: cfg.days,
-    trialDays: cfg.trialDays,
-  });
+export async function getConfig(req, res) {
+  try {
+    const cfg = getBillingConfig();
+    const payment = await loadPaymentSettings(cfg);
+    return res.status(200).json({
+      enabled: payment.enabled,
+      configured: cfg.razorpayConfigured,
+      priceInr: payment.amountInr,
+      days: cfg.days,
+      trialDays: cfg.trialDays,
+      message: payment.message,
+    });
+  } catch (err) {
+    console.error("billing getConfig error:", err);
+    return res.status(500).json({ error: "Failed to load billing config" });
+  }
 }
 
 /**
@@ -45,13 +52,20 @@ export async function getStatus(req, res) {
       .limit(5);
 
     return res.status(200).json({
-      enabled: cfg.paywallEnabled,
+      enabled: ctx.payment.enabled,
       configured: cfg.razorpayConfigured,
-      priceInr: cfg.priceInr,
+      priceInr: ctx.payment.amountInr,
       days: cfg.days,
       trialDays: cfg.trialDays,
+      message: ctx.payment.message,
       access: summarizeAccess(ctx),
       payments: payments || [],
+      manualSubs: ctx.manualSubs.map((m) => ({
+        id: m.id,
+        starts_at: m.starts_at,
+        ends_at: m.ends_at,
+        amount_inr: m.amount_inr,
+      })),
     });
   } catch (err) {
     console.error("billing getStatus error:", err);

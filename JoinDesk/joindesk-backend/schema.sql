@@ -358,3 +358,25 @@ create table if not exists public.payments (
 );
 
 create index if not exists payments_user_idx on public.payments (user_id, created_at desc);
+
+
+-- =========================
+-- Feature update: Manual subscriptions (UPI / PhonePe payments)
+-- =========================
+-- Safe to re-run. Run this block once in the Supabase SQL Editor.
+-- The admin adds a start date and an end date for a user after they pay.
+-- Both dates are INCLUDED (access runs from the start of start_date until
+-- the end of end_date, India time). Only Special desks need a subscription.
+create table if not exists public.manual_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users (id) on delete cascade,
+  starts_at timestamptz not null,
+  ends_at timestamptz not null,
+  amount_inr integer,
+  note text,
+  created_at timestamptz not null default now(),
+  constraint manual_subscriptions_range check (ends_at > starts_at)
+);
+
+create index if not exists manual_subscriptions_user_idx on public.manual_subscriptions (user_id, starts_at desc);
+create index if not exists manual_subscriptions_active_idx on public.manual_subscriptions (starts_at, ends_at);

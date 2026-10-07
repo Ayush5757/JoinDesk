@@ -6,17 +6,20 @@ export type BillingConfig = {
   priceInr: number;
   days: number;
   trialDays: number;
+  // The "how to pay" message the admin wrote (UPI id, PhonePe number, etc.)
+  message?: string;
 };
 
 export type AccessSummary = {
   // open = paywall off, free_all = admin gave every desk, paid, trial,
   // free_desks = admin gave only some desks, expired = must pay
-  status: "open" | "free_all" | "paid" | "trial" | "free_desks" | "expired";
+  status: "open" | "free_all" | "paid" | "scheduled" | "trial" | "free_desks" | "expired";
   until: string | null;
   freeAll: boolean;
   freeDeskIds: string[];
   subscriptionExpiresAt: string | null;
   trialEndsAt: string | null;
+  scheduledStartsAt?: string | null;
   daysLeft: number | null;
 };
 
@@ -30,9 +33,19 @@ export type BillingStatus = BillingConfig & {
     expires_at: string | null;
     days: number;
   }[];
+  // Subscriptions the admin added by hand (UPI / PhonePe payments).
+  manualSubs?: { id: string; starts_at: string; ends_at: string; amount_inr: number | null }[];
 };
 
-export type PaymentRequiredInfo = { priceInr: number; days: number; trialDays: number };
+export type PaymentRequiredInfo = {
+  priceInr: number;
+  days: number;
+  trialDays: number;
+  message: string;
+  // A subscription is saved but starts later / the last one already ended.
+  nextStartsAt: string | null;
+  lastEndedAt: string | null;
+};
 
 /** Reads the price info the backend attaches to a 402 response. */
 export function paymentInfoFromError(err: unknown): PaymentRequiredInfo | null {
@@ -42,6 +55,9 @@ export function paymentInfoFromError(err: unknown): PaymentRequiredInfo | null {
     priceInr: Number(d?.priceInr ?? 0),
     days: Number(d?.days ?? 30),
     trialDays: Number(d?.trialDays ?? 0),
+    message: String(d?.message ?? ""),
+    nextStartsAt: d?.nextStartsAt ?? null,
+    lastEndedAt: d?.lastEndedAt ?? null,
   };
 }
 
