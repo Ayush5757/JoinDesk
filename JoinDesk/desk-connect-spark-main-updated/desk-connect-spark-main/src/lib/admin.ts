@@ -416,3 +416,43 @@ export function adminGetPaymentSettings() {
 export function adminSavePaymentSettings(input: PaymentSettings) {
   return adminApi.patch<PaymentSettings>("/api/admin/payment-settings", input);
 }
+
+// =========================
+// Study Tracker: motivation lines + goal length limit
+// =========================
+export type MotivationKind = "start" | "resume" | "end";
+
+export type AdminMotivation = {
+  id: string;
+  kind: MotivationKind;
+  text: string;
+  author: string | null;
+  show_date: string | null; // null = joins the daily rotation
+  created_at: string;
+};
+
+export function adminListMotivations() {
+  return adminApi.get<{ motivations: AdminMotivation[] }>("/api/admin/motivations");
+}
+
+/** With startDate: line 1 shows on that day for EVERYONE, line 2 the next day, and so on. */
+export function adminAddMotivations(input: {
+  kind: MotivationKind;
+  lines: string[];
+  startDate?: string;
+  author?: string;
+}) {
+  return adminApi.post<{ added: number }>("/api/admin/motivations", input);
+}
+
+export function adminDeleteMotivation(id: string) {
+  return adminApi.delete<{ deleted: boolean }>(`/api/admin/motivations/${id}`);
+}
+
+export function adminGetTrackerSettings() {
+  return adminApi.get<{ maxGoalDays: number }>("/api/admin/tracker-settings");
+}
+
+export function adminSaveTrackerSettings(maxGoalDays: number) {
+  return adminApi.patch<{ maxGoalDays: number }>("/api/admin/tracker-settings", { maxGoalDays });
+}

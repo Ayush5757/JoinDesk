@@ -323,3 +323,7 @@ the check passes, so the paywall can't be bypassed by reading the page's network
 Use Razorpay **Test** keys + a test UPI/card from Razorpay's docs. Set `PAYWALL_ENABLED=true`,
 use an account older than `TRIAL_DAYS`, click *Join Meeting* → payment window opens → after
 success the profile page shows *"Access active until …"*. Switch to Live keys when happy.
+
+
+## Study Tracker (Special desks)
+Run the "Study Tracker" block at the bottom of schema.sql once in Supabase. API: /api/tracker/* (user), /api/admin/motivations and /api/admin/tracker-settings (admin).

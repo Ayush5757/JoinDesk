@@ -47,6 +47,12 @@ export function JoinDeskModal({
         window.location.href = meetLink;
       }
       onClose();
+      // Special desks come with the Study Tracker: the Meet link is already
+      // open in its own tab, so THIS tab becomes the tracker (one click,
+      // two tabs, and no second pop-up for the browser to block).
+      if (desk.isSpecial) {
+        window.location.assign(`/tracker?d=${encodeURIComponent(desk.title)}`);
+      }
     } catch (err) {
       win?.close();
       const info = paymentInfoFromError(err);
@@ -111,7 +117,7 @@ export function JoinDeskModal({
               ? "You can join this Special desk from that date."
               : paywall.lastEndedAt
                 ? `It ended on ${formatDate(new Date(Date.parse(paywall.lastEndedAt) - 1).toISOString())}. Pay again to keep joining Special desks.`
-                : "Pay to join Special desks."}
+                : "Pay to join Special desks. You can still see every desk and join all regular desks free."}
           </p>
           {!paywall.nextStartsAt && (
             <>

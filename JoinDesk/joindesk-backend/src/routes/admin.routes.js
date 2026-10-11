@@ -30,6 +30,14 @@ import {
   updatePaymentSettings,
 } from "../controllers/adminSubscriptions.controller.js";
 
+import {
+  listMotivations,
+  addMotivations,
+  deleteMotivation,
+  getTrackerSettings,
+  updateTrackerSettings,
+} from "../controllers/adminTracker.controller.js";
+
 const router = Router();
 
 // Unlocking needs a normal login (requireAuth) plus the admin password.
@@ -67,6 +75,13 @@ router.post("/users/:id/subscriptions", requireAdmin, createManualSub);
 router.delete("/subscriptions/:id", requireAdmin, deleteManualSub);
 router.get("/payment-settings", requireAdmin, getPaymentSettings);
 router.patch("/payment-settings", requireAdmin, updatePaymentSettings);
+
+// Study Tracker: motivation lines + goal length limit
+router.get("/motivations", requireAdmin, listMotivations);
+router.post("/motivations", requireAdmin, addMotivations);
+router.delete("/motivations/:id", requireAdmin, deleteMotivation);
+router.get("/tracker-settings", requireAdmin, getTrackerSettings);
+router.patch("/tracker-settings", requireAdmin, updateTrackerSettings);
 
 router.get("/feedback", requireAdmin, listFeedback);
 router.patch("/feedback/:id/status", requireAdmin, updateFeedbackStatus);

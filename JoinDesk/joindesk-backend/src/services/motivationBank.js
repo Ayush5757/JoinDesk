@@ -1,0 +1,67 @@
+/**
+ * Built-in motivation lines for the Study Tracker. Everyone sees the SAME
+ * line on the same day (it rotates by date), and admin-written lines are
+ * mixed in first. Each line leans on a real motivation trigger: identity
+ * ("you're someone who shows up"), momentum, loss of the streak, small
+ * wins, and future-self thinking.
+ */
+export const BUILT_IN = {
+  start: [
+    "You don't need motivation today. You need the next ten minutes. Begin.",
+    "Future you is watching what you do right now. Make them proud.",
+    "The hardest part is already behind you: you showed up.",
+    "Discipline is a gift you give to tomorrow's version of you.",
+    "Every topper you admire once stood exactly here, doubting. They started anyway.",
+    "Phone down. Door closed. One goal. Let's go.",
+    "Small steps, done daily, quietly beat talent that never shows up.",
+    "Today's effort is tomorrow's confidence. Build it.",
+    "You're not behind. You're about to catch up. Open the book.",
+    "Make today the day future-you points back to.",
+    "Focus is a superpower. Today you're using it on purpose.",
+    "While others scroll, you build. That's the whole difference.",
+    "Don't wait to feel ready. Ready is built by doing.",
+    "One deep session today changes how you see yourself. Start it.",
+    "Be so consistent that quitting stops being an option.",
+    "Show up for the version of you who wants this badly.",
+    "Today is a clean slate. Write something you'll be proud of.",
+    "Pressure means your goal matters. Turn it into focus.",
+    "Make it boring, make it daily, make it count.",
+    "Your only competition today is who you were yesterday. Beat him.",
+  ],
+  resume: [
+    "Breaks are part of the plan. Welcome back, pick up right where you left off.",
+    "You came back. That's what separates people who finish from people who wish.",
+    "Recharged. Refocused. Round two starts now.",
+    "A pause isn't failure. Quitting is, and you just chose not to.",
+    "The first minute back is the hardest. You've already won it.",
+    "Momentum isn't lost, it's loaded. Release it.",
+    "Back at it. Every minute from here counts.",
+    "Shake it off, sit tall, and go again.",
+    "The goal didn't move while you rested. Go get it.",
+    "Strong people rest, then return harder.",
+    "You're closer than you were an hour ago. Keep closing the gap.",
+    "Deep breath. Eyes on the page. Continue.",
+    "Rest done. Excuses done. Finish what you started.",
+    "The one who returns is the one who wins.",
+    "One more focused block. That's all this moment asks.",
+    "You paused, you didn't stop. Keep going.",
+  ],
+  end: [
+    "Look at what you did today. Most people never even started. Rest well, you earned it.",
+    "Progress, no matter how small, is still progress. See you tomorrow.",
+    "Today's effort is banked forever. Tomorrow adds interest.",
+    "You didn't just study today, you kept a promise to yourself.",
+    "Close the book proudly. The compounding has begun.",
+    "Another brick laid. The wall is rising.",
+    "Rest is part of the work. Recharge, tomorrow you go again.",
+    "That's a day well spent. Don't break the chain.",
+    "You showed up when it was easier not to. That's character.",
+    "Be proud, sleep well, wake up hungry.",
+    "Consistency is built on days exactly like this one.",
+    "You moved closer today. That's the only thing that matters.",
+    "Every session you finish makes the next one easier to start.",
+    "You're becoming someone who follows through. Keep going.",
+    "Done for today. Your future self just said thank you.",
+    "Great work. Switch off, reset, and come back stronger.",
+  ],
+};

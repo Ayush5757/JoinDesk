@@ -380,3 +380,69 @@ create table if not exists public.manual_subscriptions (
 
 create index if not exists manual_subscriptions_user_idx on public.manual_subscriptions (user_id, starts_at desc);
 create index if not exists manual_subscriptions_active_idx on public.manual_subscriptions (starts_at, ends_at);
+
+
+-- =========================
+-- Feature update: Study Tracker (progress tracker for Special desks)
+-- =========================
+-- Safe to re-run. Run this block once in the Supabase SQL Editor.
+
+-- Every stretch of studying (kind='study') or taking a break (kind='break').
+-- ended_at is NULL while it is running. Time is measured purely from the
+-- started_at / ended_at timestamps of the button clicks (no pings).
+create table if not exists public.study_segments (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users (id) on delete cascade,
+  goal_id uuid,
+  kind text not null check (kind in ('study', 'break')),
+  started_at timestamptz not null default now(),
+  ended_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists study_segments_user_idx on public.study_segments (user_id, started_at desc);
+-- a person can only have ONE running segment at a time
+create unique index if not exists study_segments_one_open_idx on public.study_segments (user_id) where ended_at is null;
+
+-- A goal: "Finish Physics chapter 3 in 4 days".
+-- status: active (current) | completed | shelved (incomplete, put aside)
+create table if not exists public.study_goals (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users (id) on delete cascade,
+  title text not null,
+  total_days integer not null,
+  start_date date not null,
+  deadline_date date not null,
+  status text not null default 'active' check (status in ('active', 'completed', 'shelved')),
+  completed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists study_goals_user_idx on public.study_goals (user_id, created_at desc);
+create unique index if not exists study_goals_one_active_idx on public.study_goals (user_id) where status = 'active';
+
+-- Progress at the END of a day (cumulative %, 0-100) for a goal.
+create table if not exists public.study_goal_days (
+  id uuid primary key default gen_random_uuid(),
+  goal_id uuid not null references public.study_goals (id) on delete cascade,
+  user_id uuid not null references public.users (id) on delete cascade,
+  day date not null,
+  progress integer not null check (progress between 0 and 100),
+  saved_at timestamptz not null default now(),
+  unique (goal_id, day)
+);
+
+-- Admin-written motivations. show_date NULL = joins the daily rotation,
+-- show_date = a date -> shown to EVERYONE on that exact day.
+create table if not exists public.study_motivations (
+  id uuid primary key default gen_random_uuid(),
+  kind text not null check (kind in ('start', 'resume', 'end')),
+  text text not null,
+  author text,
+  show_date date,
+  created_at timestamptz not null default now()
+);
+create index if not exists study_motivations_idx on public.study_motivations (kind, show_date);
+
+-- Admin setting: how many days a goal may last (default 4).
+insert into public.site_settings (key, value)
+values ('tracker_settings', '{"maxGoalDays":4}')
+on conflict (key) do nothing;

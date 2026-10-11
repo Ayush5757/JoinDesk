@@ -26,6 +26,7 @@ import {
   Gift,
   Download,
   Loader2,
+  Timer,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { Navbar } from "@/components/joindesk/Navbar";
@@ -34,6 +35,7 @@ import { AdminDeskModal, type AdminDeskFormValues } from "@/components/joindesk/
 import { AdminJoinersModal } from "@/components/joindesk/AdminJoinersModal";
 import { AdminAnalyticsTab } from "@/components/joindesk/AdminAnalyticsTab";
 import { AdminAccessTab } from "@/components/joindesk/AdminAccessTab";
+import { AdminTrackerTab } from "@/components/joindesk/AdminTrackerTab";
 import { AdminUserDetailModal } from "@/components/joindesk/AdminUserDetailModal";
 import { AccessBadge, fmtDay, saveBlob, timeAgo } from "@/components/joindesk/adminShared";
 import { loginWithGoogle, logout, restoreSession, BlockedError, type AppUser } from "@/lib/auth";
@@ -187,7 +189,7 @@ function AdminGate() {
 
 function AdminPanel({ onLock }: { onLock: () => void }) {
   const [tab, setTab] = useState<
-    "desks" | "analytics" | "access" | "users" | "feedback" | "notice"
+    "desks" | "analytics" | "access" | "users" | "feedback" | "notice" | "tracker"
   >("desks");
 
   return (
@@ -274,6 +276,17 @@ function AdminPanel({ onLock }: { onLock: () => void }) {
         >
           <Megaphone className="h-4 w-4" /> Notice
         </button>
+        <button
+          onClick={() => setTab("tracker")}
+          className={
+            "inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-colors " +
+            (tab === "tracker"
+              ? "bg-card shadow-soft"
+              : "text-muted-foreground hover:text-foreground")
+          }
+        >
+          <Timer className="h-4 w-4" /> Study tracker
+        </button>
       </div>
 
       <div className="mt-6">
@@ -287,6 +300,8 @@ function AdminPanel({ onLock }: { onLock: () => void }) {
           <AdminUsersTab />
         ) : tab === "feedback" ? (
           <AdminFeedbackTab />
+        ) : tab === "tracker" ? (
+          <AdminTrackerTab />
         ) : (
           <AdminNoticeTab />
         )}

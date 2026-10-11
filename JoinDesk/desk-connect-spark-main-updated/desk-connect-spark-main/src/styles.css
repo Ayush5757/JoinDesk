@@ -227,3 +227,39 @@
     color: var(--color-foreground);
   }
 }
+
+/* ---- Study Tracker: progress slider ---- */
+.tracker-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 10px;
+  border-radius: 9999px;
+  outline: none;
+  cursor: pointer;
+  background: linear-gradient(
+    to right,
+    var(--primary) 0%,
+    var(--primary) var(--fill, 0%),
+    var(--muted) var(--fill, 0%),
+    var(--muted) 100%
+  );
+}
+.tracker-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 10px oklch(0.19 0.03 265 / 0.25);
+}
+.tracker-range::-moz-range-thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 10px oklch(0.19 0.03 265 / 0.25);
+}
