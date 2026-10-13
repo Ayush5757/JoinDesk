@@ -446,3 +446,50 @@ create index if not exists study_motivations_idx on public.study_motivations (ki
 insert into public.site_settings (key, value)
 values ('tracker_settings', '{"maxGoalDays":4}')
 on conflict (key) do nothing;
+
+
+-- =========================
+-- Feature update: Random Chat (1-on-1 video, "Next" to meet someone new)
+-- =========================
+-- Safe to re-run. Run this block once in the Supabase SQL Editor.
+-- Video itself never touches the server (WebRTC, browser to browser).
+-- These tables only pair people up and pass the connection handshake.
+
+create table if not exists public.random_rooms (
+  id uuid primary key default gen_random_uuid(),
+  user_a uuid not null references public.users (id) on delete cascade, -- was waiting first
+  user_b uuid references public.users (id) on delete cascade,          -- joined later (makes the call)
+  status text not null default 'waiting' check (status in ('waiting', 'matched', 'ended')),
+  offer text,
+  answer text,
+  last_poll_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  matched_at timestamptz,
+  ended_at timestamptz,
+  ended_by uuid
+);
+create index if not exists random_rooms_status_idx on public.random_rooms (status, created_at);
+create index if not exists random_rooms_user_a_idx on public.random_rooms (user_a);
+create index if not exists random_rooms_user_b_idx on public.random_rooms (user_b);
+
+-- "Never match me with this person again"
+create table if not exists public.random_blocks (
+  blocker uuid not null references public.users (id) on delete cascade,
+  blocked uuid not null references public.users (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (blocker, blocked)
+);
+
+create table if not exists public.random_reports (
+  id uuid primary key default gen_random_uuid(),
+  room_id uuid,
+  reporter uuid not null references public.users (id) on delete cascade,
+  reported uuid not null references public.users (id) on delete cascade,
+  reason text not null,
+  details text,
+  status text not null default 'open' check (status in ('open', 'dismissed', 'actioned')),
+  created_at timestamptz not null default now(),
+  resolved_at timestamptz
+);
+create index if not exists random_reports_status_idx on public.random_reports (status, created_at desc);
+create index if not exists random_reports_reported_idx on public.random_reports (reported, created_at desc);

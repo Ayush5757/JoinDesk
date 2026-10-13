@@ -27,6 +27,7 @@ import {
   Download,
   Loader2,
   Timer,
+  Video,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { Navbar } from "@/components/joindesk/Navbar";
@@ -36,6 +37,7 @@ import { AdminJoinersModal } from "@/components/joindesk/AdminJoinersModal";
 import { AdminAnalyticsTab } from "@/components/joindesk/AdminAnalyticsTab";
 import { AdminAccessTab } from "@/components/joindesk/AdminAccessTab";
 import { AdminTrackerTab } from "@/components/joindesk/AdminTrackerTab";
+import { AdminRandomTab } from "@/components/joindesk/AdminRandomTab";
 import { AdminUserDetailModal } from "@/components/joindesk/AdminUserDetailModal";
 import { AccessBadge, fmtDay, saveBlob, timeAgo } from "@/components/joindesk/adminShared";
 import { loginWithGoogle, logout, restoreSession, BlockedError, type AppUser } from "@/lib/auth";
@@ -189,7 +191,7 @@ function AdminGate() {
 
 function AdminPanel({ onLock }: { onLock: () => void }) {
   const [tab, setTab] = useState<
-    "desks" | "analytics" | "access" | "users" | "feedback" | "notice" | "tracker"
+    "desks" | "analytics" | "access" | "users" | "feedback" | "notice" | "tracker" | "random"
   >("desks");
 
   return (
@@ -287,6 +289,17 @@ function AdminPanel({ onLock }: { onLock: () => void }) {
         >
           <Timer className="h-4 w-4" /> Study tracker
         </button>
+        <button
+          onClick={() => setTab("random")}
+          className={
+            "inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-colors " +
+            (tab === "random"
+              ? "bg-card shadow-soft"
+              : "text-muted-foreground hover:text-foreground")
+          }
+        >
+          <Video className="h-4 w-4" /> Random chat
+        </button>
       </div>
 
       <div className="mt-6">
@@ -302,6 +315,8 @@ function AdminPanel({ onLock }: { onLock: () => void }) {
           <AdminFeedbackTab />
         ) : tab === "tracker" ? (
           <AdminTrackerTab />
+        ) : tab === "random" ? (
+          <AdminRandomTab />
         ) : (
           <AdminNoticeTab />
         )}

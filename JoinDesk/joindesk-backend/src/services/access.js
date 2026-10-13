@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "../config/supabase.js";
 import { getBillingConfig } from "../config/billing.js";
+import { getRandomConfig } from "../config/random.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const PAYMENT_KEY = "payment_settings";
@@ -239,4 +240,24 @@ export function paymentInfo(cfg = getBillingConfig(), payment, extra = {}) {
     nextStartsAt: extra.nextStartsAt || null,
     lastEndedAt: extra.lastEndedAt || null,
   };
+}
+
+/**
+ * Can this person use Random Chat?
+ *  - RANDOM_CHAT_PAID=false (default): every logged-in user, free.
+ *  - RANDOM_CHAT_PAID=true: same people who can use Special desks, i.e. an
+ *    active subscription (manual or Razorpay), "free access to ALL desks", or
+ *    a free trial. A free pass for ONE desk does not unlock it.
+ * It follows the Random Chat switch in .env, not the Special-desk payment
+ * switch in the admin panel.
+ */
+export function evaluateRandomAccess(ctx, now = Date.now(), cfg = getBillingConfig(), random = getRandomConfig()) {
+  if (!random.paid) return { allowed: true, type: "open" };
+  if (!ctx) return { allowed: false, type: "expired" };
+  const forced = {
+    ...ctx,
+    grants: ctx.grants.filter((g) => g.scope === "all"),
+    payment: { ...ctx.payment, enabled: true },
+  };
+  return evaluateAccess(forced, { id: null, is_special: true }, now, cfg);
 }

@@ -456,3 +456,34 @@ export function adminGetTrackerSettings() {
 export function adminSaveTrackerSettings(maxGoalDays: number) {
   return adminApi.patch<{ maxGoalDays: number }>("/api/admin/tracker-settings", { maxGoalDays });
 }
+
+// =========================
+// Random chat reports
+// =========================
+export type RandomReport = {
+  id: string;
+  room_id: string | null;
+  reporter: string;
+  reported: string;
+  reason: string;
+  details: string | null;
+  status: "open" | "dismissed" | "actioned";
+  created_at: string;
+  resolved_at: string | null;
+  reporterUser: { id: string; name: string; email: string; is_blocked: boolean } | null;
+  reportedUser: { id: string; name: string; email: string; is_blocked: boolean } | null;
+  openReportsAgainst: number; // different people with an open report on the same person
+};
+
+export function adminListRandomReports(status: "open" | "dismissed" | "actioned" | "all") {
+  return adminApi.get<{ reports: RandomReport[] }>(`/api/admin/random-reports?status=${status}`);
+}
+
+export function adminResolveRandomReport(id: string, status: "dismissed" | "actioned") {
+  return adminApi.post<{ ok: boolean }>(`/api/admin/random-reports/${id}/resolve`, { status });
+}
+
+/** Dismisses every open report against someone (also lifts their automatic pause). */
+export function adminClearRandomReportsAgainst(userId: string) {
+  return adminApi.post<{ ok: boolean }>(`/api/admin/users/${userId}/random-reports/clear`);
+}

@@ -327,3 +327,7 @@ success the profile page shows *"Access active until …"*. Switch to Live keys 
 
 ## Study Tracker (Special desks)
 Run the "Study Tracker" block at the bottom of schema.sql once in Supabase. API: /api/tracker/* (user), /api/admin/motivations and /api/admin/tracker-settings (admin).
+
+
+## Random Chat (1-on-1 video)
+Run the "Random Chat" block at the bottom of schema.sql once in Supabase. API: /api/random/*. Env: RANDOM_CHAT_ENABLED, RANDOM_CHAT_PAID, RANDOM_AUTO_RESTRICT_REPORTS, RANDOM_ICE_SERVERS (see .env.example). Video is peer-to-peer (WebRTC); the backend only matches people and passes the handshake over plain HTTP, so it works on Vercel.

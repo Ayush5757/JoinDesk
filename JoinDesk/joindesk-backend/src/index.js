@@ -12,6 +12,7 @@ import feedbackRoutes from "./routes/feedback.routes.js";
 import settingsRoutes from "./routes/settings.routes.js";
 import billingRoutes from "./routes/billing.routes.js";
 import trackerRoutes from "./routes/tracker.routes.js";
+import randomRoutes from "./routes/random.routes.js";
 
 const app = express();
 
@@ -46,6 +47,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/feedback", feedbackRoutes);
 app.use("/api/billing", billingRoutes);
 app.use("/api/tracker", trackerRoutes);
+app.use("/api/random", randomRoutes);
 app.use("/api", settingsRoutes);
 
 // 404

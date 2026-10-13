@@ -38,6 +38,12 @@ import {
   updateTrackerSettings,
 } from "../controllers/adminTracker.controller.js";
 
+import {
+  listRandomReports,
+  resolveRandomReport,
+  clearReportsAgainst,
+} from "../controllers/adminRandom.controller.js";
+
 const router = Router();
 
 // Unlocking needs a normal login (requireAuth) plus the admin password.
@@ -82,6 +88,11 @@ router.post("/motivations", requireAdmin, addMotivations);
 router.delete("/motivations/:id", requireAdmin, deleteMotivation);
 router.get("/tracker-settings", requireAdmin, getTrackerSettings);
 router.patch("/tracker-settings", requireAdmin, updateTrackerSettings);
+
+// Random Chat reports
+router.get("/random-reports", requireAdmin, listRandomReports);
+router.post("/random-reports/:id/resolve", requireAdmin, resolveRandomReport);
+router.post("/users/:id/random-reports/clear", requireAdmin, clearReportsAgainst);
 
 router.get("/feedback", requireAdmin, listFeedback);
 router.patch("/feedback/:id/status", requireAdmin, updateFeedbackStatus);

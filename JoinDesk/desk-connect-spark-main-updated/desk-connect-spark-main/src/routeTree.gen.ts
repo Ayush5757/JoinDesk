@@ -12,8 +12,9 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as PomodoroRouteImport } from './routes/pomodoro'
-import { Route as SpecialRouteImport } from './routes/special'
 import { Route as TrackerRouteImport } from './routes/tracker'
+import { Route as RandomRouteImport } from './routes/random'
+import { Route as SpecialRouteImport } from './routes/special'
 import { Route as ProfileIdRouteImport } from './routes/profile.$id'
 
 const IndexRoute = IndexRouteImport.update({
@@ -31,14 +32,19 @@ const PomodoroRoute = PomodoroRouteImport.update({
   path: '/pomodoro',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SpecialRoute = SpecialRouteImport.update({
-  id: '/special',
-  path: '/special',
+const RandomRoute = RandomRouteImport.update({
+  id: '/random',
+  path: '/random',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TrackerRoute = TrackerRouteImport.update({
   id: '/tracker',
   path: '/tracker',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SpecialRoute = SpecialRouteImport.update({
+  id: '/special',
+  path: '/special',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProfileIdRoute = ProfileIdRouteImport.update({
@@ -53,6 +59,7 @@ export interface FileRoutesByFullPath {
   '/pomodoro': typeof PomodoroRoute
   '/special': typeof SpecialRoute
   '/tracker': typeof TrackerRoute
+  '/random': typeof RandomRoute
   '/profile/$id': typeof ProfileIdRoute
 }
 export interface FileRoutesByTo {
@@ -61,6 +68,7 @@ export interface FileRoutesByTo {
   '/pomodoro': typeof PomodoroRoute
   '/special': typeof SpecialRoute
   '/tracker': typeof TrackerRoute
+  '/random': typeof RandomRoute
   '/profile/$id': typeof ProfileIdRoute
 }
 export interface FileRoutesById {
@@ -70,22 +78,15 @@ export interface FileRoutesById {
   '/pomodoro': typeof PomodoroRoute
   '/special': typeof SpecialRoute
   '/tracker': typeof TrackerRoute
+  '/random': typeof RandomRoute
   '/profile/$id': typeof ProfileIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    '/' | '/admin' | '/pomodoro' | '/special' | '/tracker' | '/profile/$id'
+  fullPaths: '/' | '/admin' | '/pomodoro' | '/special' | '/tracker' | '/random' | '/profile/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/pomodoro' | '/special' | '/tracker' | '/profile/$id'
-  id:
-    | '__root__'
-    | '/'
-    | '/admin'
-    | '/pomodoro'
-    | '/special'
-    | '/tracker'
-    | '/profile/$id'
+  to: '/' | '/admin' | '/pomodoro' | '/special' | '/tracker' | '/random' | '/profile/$id'
+  id: '__root__' | '/' | '/admin' | '/pomodoro' | '/special' | '/tracker' | '/random' | '/profile/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -94,6 +95,7 @@ export interface RootRouteChildren {
   PomodoroRoute: typeof PomodoroRoute
   SpecialRoute: typeof SpecialRoute
   TrackerRoute: typeof TrackerRoute
+  RandomRoute: typeof RandomRoute
   ProfileIdRoute: typeof ProfileIdRoute
 }
 
@@ -127,6 +129,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SpecialRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/random': {
+      id: '/random'
+      path: '/random'
+      fullPath: '/random'
+      preLoaderRoute: typeof RandomRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/tracker': {
       id: '/tracker'
       path: '/tracker'
@@ -150,6 +159,7 @@ const rootRouteChildren: RootRouteChildren = {
   PomodoroRoute: PomodoroRoute,
   SpecialRoute: SpecialRoute,
   TrackerRoute: TrackerRoute,
+  RandomRoute: RandomRoute,
   ProfileIdRoute: ProfileIdRoute,
 }
 export const routeTree = rootRouteImport
