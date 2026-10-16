@@ -17,7 +17,7 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
-import { Navbar } from "@/components/joindesk/Navbar";
+import { FocusTopBar } from "@/components/pomodoro/FocusTopBar";
 import { BlockedScreen } from "@/components/joindesk/BlockedScreen";
 import { JoinDeskModal } from "@/components/joindesk/JoinDeskModal";
 import { loginWithGoogle, logout, restoreSession, BlockedError, type AppUser } from "@/lib/auth";
@@ -634,6 +634,69 @@ function PomodoroPage() {
   const [tabHidden, setTabHidden] = useState(false);
   const failedCount = useRef(0);
 
+  // top bar: hidden by default, shown on hover (and for a few seconds at the start)
+  const [barVisible, setBarVisible] = useState(true);
+  const barTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showBar = () => {
+    if (barTimer.current) clearTimeout(barTimer.current);
+    setBarVisible(true);
+  };
+  const hideBarSoon = (ms = 1200) => {
+    if (barTimer.current) clearTimeout(barTimer.current);
+    barTimer.current = setTimeout(() => setBarVisible(false), ms);
+  };
+  useEffect(() => {
+    hideBarSoon(3500);
+    return () => {
+      if (barTimer.current) clearTimeout(barTimer.current);
+    };
+  }, []);
+
+  // full screen
+  const [fullscreen, setFullscreen] = useState(false);
+  const [canFullscreen, setCanFullscreen] = useState(false);
+  const [fsHint, setFsHint] = useState(false);
+  const [cursorIdle, setCursorIdle] = useState(false);
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    else void document.documentElement.requestFullscreen().catch(() => toast("Full screen isn't available in this browser."));
+  };
+  useEffect(() => {
+    setCanFullscreen(Boolean(document.fullscreenEnabled));
+    const onChange = () => {
+      const on = Boolean(document.fullscreenElement);
+      setFullscreen(on);
+      setHud(!on); // full screen = just the picture and the time
+      setBarVisible(false);
+      if (on) {
+        setFsHint(true);
+        setTimeout(() => setFsHint(false), 4500);
+      }
+    };
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+
+  // in full screen the mouse pointer also gets out of the way when it isn't moving
+  useEffect(() => {
+    if (!fullscreen) {
+      setCursorIdle(false);
+      return;
+    }
+    let t: ReturnType<typeof setTimeout>;
+    const wake = () => {
+      setCursorIdle(false);
+      clearTimeout(t);
+      t = setTimeout(() => setCursorIdle(true), 2500);
+    };
+    wake();
+    window.addEventListener("mousemove", wake);
+    return () => {
+      window.removeEventListener("mousemove", wake);
+      clearTimeout(t);
+    };
+  }, [fullscreen]);
+
   useEffect(() => {
     const conn = (navigator as unknown as { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
     const saved = localStorage.getItem(STILL_KEY);
@@ -657,7 +720,9 @@ function PomodoroPage() {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === "h" || e.key === "H") setHud((v) => !v);
+      if (e.key === "f" || e.key === "F") toggleFullscreen();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -702,10 +767,6 @@ function PomodoroPage() {
       if (err instanceof BlockedError) setIsBlocked(true);
     }
   };
-  const handleLogout = () => {
-    logout();
-    setUser(null);
-  };
 
   if (checkingSession) return <div className="min-h-screen bg-background" />;
   if (isBlocked) return <BlockedScreen />;
@@ -716,7 +777,11 @@ function PomodoroPage() {
     "grid h-8 w-8 place-items-center rounded-full border border-white/20 bg-white/10 transition-colors hover:bg-white/20";
 
   return (
-    <div className="relative flex h-screen min-h-[520px] flex-col overflow-hidden text-white">
+    <div
+      className={
+        "relative h-screen min-h-[520px] overflow-hidden text-white " + (fullscreen && cursorIdle ? "cursor-none" : "")
+      }
+    >
       <SceneBackground
         scene={scene}
         still={still}
@@ -726,39 +791,28 @@ function PomodoroPage() {
         onFailed={onSceneFailed}
       />
 
-      <Navbar
-        isLoggedIn={Boolean(user)}
+      <FocusTopBar
+        visible={barVisible}
+        onShow={showBar}
+        onHideSoon={() => hideBarSoon(900)}
         user={user}
         onLogin={handleLogin}
-        onLogout={handleLogout}
-        searchQuery=""
-        onSearchChange={() => {}}
-        onCreate={() => {}}
-        hideSearch
-        hideCreate
+        onJoin={() => setJoinPanelOpen(true)}
+        hud={hud}
+        onToggleHud={() => setHud((v) => !v)}
+        canFullscreen={canFullscreen}
+        fullscreen={fullscreen}
+        onToggleFullscreen={toggleFullscreen}
       />
 
-      {/* Everything is small and sits at the edges, so the scene stays clear. */}
-      <div className="relative flex-1">
-        {/* top right: show/hide panels + join a desk */}
-        <div className="absolute right-3 top-3 flex items-center gap-2">
-          <button
-            onClick={() => setHud((v) => !v)}
-            title={hud ? "Hide panels (H)" : "Show panels (H)"}
-            className={round + " bg-black/30 backdrop-blur-md"}
-          >
-            {hud ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          </button>
-          {hud && (
-            <button
-              onClick={() => setJoinPanelOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-2 text-xs font-bold text-slate-900 shadow-lg transition-transform hover:scale-105"
-            >
-              <Video className="h-3.5 w-3.5" /> Join a desk
-            </button>
-          )}
-        </div>
+      {fsHint && (
+        <p className="pointer-events-none absolute left-1/2 top-4 z-40 -translate-x-1/2 rounded-full bg-black/45 px-4 py-2 text-xs font-medium backdrop-blur-md">
+          Full screen · move the mouse to the top for the menu · <b>F</b> or <b>Esc</b> to exit · <b>H</b> for panels
+        </p>
+      )}
 
+      {/* Everything else is small and sits at the bottom edge, so the scene stays clear. */}
+      <div className="absolute inset-0">
         {hud && (
           <div className="absolute inset-x-3 bottom-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             {/* ------------------------------- timer ------------------------------- */}
@@ -859,6 +913,20 @@ function PomodoroPage() {
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {!hud && (
+          <div className="absolute bottom-3 left-3 flex items-center gap-2 rounded-full bg-black/30 py-1 pl-3.5 pr-1 backdrop-blur-md">
+            <span className="font-mono text-sm font-semibold tabular-nums">{formatTime(timer.secondsLeft)}</span>
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-white/60">{phaseLabel(timer.phase)}</span>
+            <button
+              onClick={timer.running ? timer.pause : timer.start}
+              title={timer.running ? "Pause" : "Start"}
+              className="grid h-7 w-7 place-items-center rounded-full bg-white/15 transition-colors hover:bg-white/25"
+            >
+              {timer.running ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+            </button>
           </div>
         )}
       </div>

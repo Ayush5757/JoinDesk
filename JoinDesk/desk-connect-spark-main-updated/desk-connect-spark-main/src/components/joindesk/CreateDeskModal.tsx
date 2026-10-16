@@ -6,7 +6,6 @@ export type NewDeskInput = { title: string; subject: string; description: string
 
 // One-tap ideas for the subject; people can still type anything.
 const SUBJECT_IDEAS = [
-  "Exam Preparation",
   "Physics",
   "Chemistry",
   "Biology",

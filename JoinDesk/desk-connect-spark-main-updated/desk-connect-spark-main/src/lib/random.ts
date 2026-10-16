@@ -37,6 +37,15 @@ export const randomApi = {
 // =========================
 // The call itself
 // =========================
+/** How the sound is doing right now (measured by the browser itself, no extra audio processing). */
+export type CallStats = {
+  heardLevel: number; // 0..1, how loud the other person is
+  micLevel: number; // 0..1, how loud YOU are being sent
+  lossPct: number; // % of audio packets lost in the last few seconds
+  concealedPct: number; // % of sound the browser had to "guess" (this is the stutter)
+  jitterMs: number;
+};
+
 export type CallState = "idle" | "searching" | "connecting" | "connected" | "partner-left" | "failed";
 
 type Handlers = {
@@ -92,6 +101,7 @@ export class RandomClient {
   private connected = false;
   private matchedAt = 0;
   private pollErrors = 0;
+  private prevAudio: { lost: number; received: number; concealed: number; samples: number } | null = null;
 
   constructor(
     private readonly stream: MediaStream,
@@ -109,6 +119,7 @@ export class RandomClient {
     this.teardown();
     const run = ++this.run;
     this.negotiating = this.answered = this.gotAnswer = this.connected = false;
+    this.prevAudio = null;
     this.pollErrors = 0;
     this.lastRoom = null;
     this.h.onState("searching");
@@ -119,6 +130,55 @@ export class RandomClient {
       return;
     }
     await this.handle(run, view);
+  }
+
+  /**
+   * Reads the connection's own sound statistics. Cheap, and it doesn't touch the audio itself,
+   * so it can't cause glitches. Loss and concealment are measured since the previous call.
+   */
+  async getStats(): Promise<CallStats | null> {
+    const pc = this.pc;
+    if (!pc || !this.connected) return null;
+    try {
+      const report = await pc.getStats();
+      let inbound: Record<string, number> | null = null;
+      let source: Record<string, number> | null = null;
+      report.forEach((r: Record<string, unknown>) => {
+        if (r["type"] === "inbound-rtp" && r["kind"] === "audio") inbound = r as Record<string, number>;
+        else if (r["type"] === "media-source" && r["kind"] === "audio") source = r as Record<string, number>;
+      });
+      const inb = inbound as Record<string, number> | null;
+      const src = source as Record<string, number> | null;
+      let lossPct = 0;
+      let concealedPct = 0;
+      if (inb) {
+        const cur = {
+          lost: inb["packetsLost"] ?? 0,
+          received: inb["packetsReceived"] ?? 0,
+          concealed: inb["concealedSamples"] ?? 0,
+          samples: inb["totalSamplesReceived"] ?? 0,
+        };
+        const prev = this.prevAudio;
+        if (prev) {
+          const dLost = cur.lost - prev.lost;
+          const dRecv = cur.received - prev.received;
+          const dConc = cur.concealed - prev.concealed;
+          const dSamp = cur.samples - prev.samples;
+          if (dLost + dRecv > 0) lossPct = Math.max(0, (dLost / (dLost + dRecv)) * 100);
+          if (dSamp > 0) concealedPct = Math.max(0, (dConc / dSamp) * 100);
+        }
+        this.prevAudio = cur;
+      }
+      return {
+        heardLevel: inb?.["audioLevel"] ?? 0,
+        micLevel: src?.["audioLevel"] ?? 0,
+        lossPct,
+        concealedPct,
+        jitterMs: (inb?.["jitter"] ?? 0) * 1000,
+      };
+    } catch {
+      return null;
+    }
   }
 
   /** "Next": tell the other person, then look for someone new. */
@@ -331,17 +391,28 @@ export class RandomClient {
     }
   }
 
-  /** Keeps video light so it also works on slow networks (and stays cheap if a relay is added later). */
+  /**
+   * Keeps the video light and protects the VOICE: when the network is tight the browser gives
+   * audio first and squeezes the video, instead of letting video crowd the voice out (that
+   * crowding is what makes speech crackle and break up).
+   */
   private async capBitrate() {
-    try {
-      const sender = this.pc?.getSenders().find((s) => s.track?.kind === "video");
-      if (!sender) return;
-      const params = sender.getParameters();
-      const first = params.encodings?.[0] ?? {};
-      params.encodings = [{ ...first, maxBitrate: 700_000 }];
-      await sender.setParameters(params);
-    } catch {
-      /* not supported everywhere: fine */
+    const senders = this.pc?.getSenders() ?? [];
+    for (const sender of senders) {
+      const kind = sender.track?.kind;
+      if (!kind) continue;
+      try {
+        const params = sender.getParameters();
+        const first = (params.encodings?.[0] ?? {}) as RTCRtpEncodingParameters & { networkPriority?: string };
+        params.encodings = [
+          kind === "video"
+            ? { ...first, maxBitrate: 500_000, priority: "low", networkPriority: "low" }
+            : { ...first, maxBitrate: 64_000, priority: "high", networkPriority: "high" },
+        ] as RTCRtpEncodingParameters[];
+        await sender.setParameters(params);
+      } catch {
+        /* not supported everywhere: fine */
+      }
     }
   }
 

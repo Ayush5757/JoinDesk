@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   CreditCard,
   Volume2,
+  Headphones,
   Flag,
   Loader2,
   Mic,
@@ -20,7 +21,14 @@ import { GoogleIcon } from "@/components/joindesk/GoogleIcon";
 import { Sheet } from "@/components/tracker/Sheet";
 import { ApiError } from "@/lib/api";
 import { loginWithGoogle, restoreSession, BlockedError, type AppUser } from "@/lib/auth";
-import { RandomClient, randomApi, type CallState, type RandomConfig, type ReportReason } from "@/lib/random";
+import {
+  RandomClient,
+  randomApi,
+  type CallState,
+  type CallStats,
+  type RandomConfig,
+  type ReportReason,
+} from "@/lib/random";
 
 export const Route = createFileRoute("/random")({
   head: () => ({ meta: [{ title: "Random chat — JoinDesk" }] }),
@@ -50,51 +58,6 @@ function mediaErrorText(err: unknown): string {
   return "Couldn't start your camera and microphone.";
 }
 
-/**
- * 0..1 "how loud is this stream right now", used for the little mic / voice indicators
- * so people can SEE that their microphone works and that the other person is speaking.
- */
-function useAudioLevel(stream: MediaStream | null, tick: number): number {
-  const [level, setLevel] = useState(0);
-  useEffect(() => {
-    if (!stream || stream.getAudioTracks().length === 0) {
-      setLevel(0);
-      return;
-    }
-    let raf = 0;
-    let ctx: AudioContext | null = null;
-    let last = 0;
-    try {
-      const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-      if (!Ctor) return;
-      ctx = new Ctor();
-      void ctx.resume().catch(() => {});
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 256;
-      ctx.createMediaStreamSource(stream).connect(analyser);
-      const data = new Uint8Array(analyser.frequencyBinCount);
-      const loop = (t: number) => {
-        raf = requestAnimationFrame(loop);
-        if (t - last < 120) return; // ~8 updates a second is plenty
-        last = t;
-        analyser.getByteFrequencyData(data);
-        let sum = 0;
-        for (const v of data) sum += v;
-        setLevel(Math.min(1, sum / data.length / 60));
-      };
-      raf = requestAnimationFrame(loop);
-    } catch {
-      setLevel(0);
-    }
-    return () => {
-      cancelAnimationFrame(raf);
-      void ctx?.close().catch(() => {});
-    };
-    // `tick` makes this re-run when the remote stream gets its tracks
-  }, [stream, tick]);
-  return level;
-}
-
 function RandomPage() {
   const [user, setUser] = useState<AppUser | null>(null);
   const [phase, setPhase] = useState<Phase>("checking");
@@ -118,7 +81,8 @@ function RandomPage() {
   const remoteVideo = useRef<HTMLVideoElement | null>(null);
   const retries = useRef(0);
   const [soundBlocked, setSoundBlocked] = useState(false);
-  const [remoteTick, setRemoteTick] = useState(0);
+  const [stats, setStats] = useState<CallStats | null>(null);
+  const [headphones, setHeadphones] = useState(false);
 
   // ---------- who is this, and may they use it? ----------
   const loadConfig = useCallback(async () => {
@@ -170,6 +134,7 @@ function RandomPage() {
   const [, bump] = useState(0);
   useEffect(() => {
     if (localVideo.current && streamRef.current && localVideo.current.srcObject !== streamRef.current) {
+      localVideo.current.muted = true; // never play your own microphone back through the speakers
       localVideo.current.srcObject = streamRef.current;
     }
     const rv = remoteVideo.current;
@@ -195,8 +160,33 @@ function RandomPage() {
     void rv.play().then(() => setSoundBlocked(false), () => setSoundBlocked(true));
   };
 
-  const myLevel = useAudioLevel(phase === "live" && micOn ? streamRef.current : null, 0);
-  const theirLevel = useAudioLevel(call === "connected" ? remoteStream.current : null, remoteTick);
+  // How the sound is doing, read from the connection itself every couple of seconds.
+  useEffect(() => {
+    if (call !== "connected") {
+      setStats(null);
+      return;
+    }
+    const id = setInterval(() => {
+      void clientRef.current?.getStats().then((s) => s && setStats(s));
+    }, 1500);
+    return () => clearInterval(id);
+  }, [call]);
+
+  const myLevel = micOn ? (stats?.micLevel ?? 0) * 3 : 0;
+  const theirLevel = stats?.heardLevel ?? 0;
+
+  // Headphones mode: turns off the browser's echo / noise clean-up. With headphones that makes the voice
+  // clearer; without them it can cause echo, so it's off by default.
+  const toggleHeadphones = () => {
+    const on = !headphones;
+    streamRef.current?.getAudioTracks().forEach((t) => {
+      void t
+        .applyConstraints({ echoCancellation: !on, noiseSuppression: !on, autoGainControl: !on })
+        .catch(() => {});
+    });
+    setHeadphones(on);
+    toast(on ? "Headphones mode on. Use headphones, or you'll get echo." : "Echo protection is back on.");
+  };
 
   // ---------- one place that handles "you can't search right now" ----------
   const handleSearchError = useCallback(
@@ -229,7 +219,6 @@ function RandomPage() {
       },
       onRemote: (s) => {
         remoteStream.current = s;
-        setRemoteTick((n) => n + 1);
         bump((n) => n + 1);
       },
     });
@@ -243,7 +232,13 @@ function RandomPage() {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: { width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 24, max: 30 }, facingMode: "user" },
-          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: false,
+            channelCount: 1,
+            sampleRate: { ideal: 48000 },
+          },
         });
       } catch (err) {
         setProblem(mediaErrorText(err));
@@ -251,11 +246,20 @@ function RandomPage() {
       }
       localStorage.setItem(RULES_KEY, "1");
       streamRef.current = stream;
+      // tell the browser this is a voice, so it tunes the sound for speech
+      stream.getAudioTracks().forEach((t) => {
+        try {
+          (t as MediaStreamTrack & { contentHint?: string }).contentHint = "speech";
+        } catch {
+          /* not supported: fine */
+        }
+      });
       if (stream.getAudioTracks().length === 0) {
         toast.error("No microphone found, so the other person won't hear you.");
       }
       setMicOn(true);
       setCamOn(true);
+      setHeadphones(false);
       retries.current = 0;
       setNotice("");
       clientRef.current = makeClient(stream, config.iceServers);
@@ -445,6 +449,9 @@ function RandomPage() {
           Start
         </button>
         <p className="mt-3 text-[11px] text-muted-foreground">Your browser will ask to use your camera and microphone.</p>
+        <p className="mx-auto mt-2 max-w-sm text-[11px] leading-relaxed text-muted-foreground">
+          Tip: use headphones. If two devices are in the same room without headphones, they pick up each other's sound and you'll hear echo and broken words.
+        </p>
         <BackLink />
       </Centered>
     );
@@ -574,6 +581,9 @@ function RandomPage() {
             >
               <SkipForward className="h-4 w-4" /> Next
             </button>
+            <RoundButton label={headphones ? "Headphones mode: on" : "Using headphones?"} onClick={toggleHeadphones} off={headphones}>
+              <Headphones className="h-5 w-5" />
+            </RoundButton>
             <RoundButton label="Report" onClick={() => setReporting(true)} disabled={!clientRef.current?.partnerRoomId}>
               <Flag className="h-5 w-5" />
             </RoundButton>
