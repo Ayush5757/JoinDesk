@@ -38,7 +38,7 @@ const TICKER_TOPICS = [
 const features = [
   { icon: Target, title: "Topic Discovery", copy: "Find focused study or work spaces instantly." },
   { icon: Link2, title: "Direct Meet Access", copy: "One-click redirect to any meeting link — Meet, Zoom, Teams, and more." },
-  { icon: Timer, title: "Fresh Desks", copy: "Automated 15-day desk lifespan keeps listings active." },
+  { icon: Timer, title: "Fresh Desks", copy: "Every desk lasts 24 hours, so listings are always live." },
 ];
 
 // Small, honest reasons JoinDesk feels different from a regular video call
@@ -62,7 +62,7 @@ const whyItWorks = [
   {
     icon: Zap,
     title: "Always fresh",
-    copy: "Desks auto-expire after 15 days, so you're never joining a room that's actually dead.",
+    copy: "Desks last 24 hours, so you're never joining a room that's actually dead.",
   },
 ];
 
@@ -192,7 +192,7 @@ export function LandingSection({
               </div>
             </div>
             <p className="mt-3 text-xs text-muted-foreground">
-              No setup, no downloads. Your desk disappears after 15 days.
+              No setup, no downloads. Your desk stays up for 24 hours, and you can reuse it any time.
             </p>
 
             <div className="mt-10 grid gap-3 sm:grid-cols-3">

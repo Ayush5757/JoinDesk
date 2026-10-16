@@ -1,20 +1,23 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, Loader2, ShieldBan, ShieldCheck } from "lucide-react";
+import { Bell, BellOff, Camera, Loader2, ShieldBan, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { DeskGrid } from "./DeskGrid";
 import { JoinersModal } from "./JoinersModal";
 import { JoinDeskModal } from "./JoinDeskModal";
 import { BillingCard } from "./BillingCard";
+import { PeopleLists } from "./PeopleLists";
 import { EditDeskModal, type EditDeskInput } from "./EditDeskModal";
 import {
   getProfile,
   updateAvatar,
   blockUser,
   unblockUser,
+  followUser,
+  unfollowUser,
   getUserDesksPage,
   type ProfileResponse,
 } from "@/lib/users";
-import { updateDesk, deleteDesk, setDeskHidden } from "@/lib/desks";
+import { updateDesk, deleteDesk, setDeskHidden, reuseDesk } from "@/lib/desks";
 import { type Desk } from "@/lib/joindesk";
 import { type AppUser } from "@/lib/auth";
 
@@ -31,6 +34,7 @@ export function ProfileView({
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [blockBusy, setBlockBusy] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [desks, setDesks] = useState<Desk[]>([]);
@@ -109,13 +113,43 @@ export function ProfileView({
         toast.success(`Unblocked ${profile.user.name}.`);
       } else {
         await blockUser(userId);
-        setProfile({ ...profile, iBlockedThem: true });
-        toast.success(`Blocked ${profile.user.name}. Their future desks won't show up for you.`);
+        setProfile({ ...profile, iBlockedThem: true, iFollow: false });
+        toast.success(`Blocked ${profile.user.name}. They won't see your desks or be able to join them.`);
       }
     } catch {
       toast.error("That didn't go through. Try again.");
     } finally {
       setBlockBusy(false);
+    }
+  };
+
+  const toggleFollow = async () => {
+    if (!profile) return;
+    setFollowBusy(true);
+    try {
+      if (profile.iFollow) {
+        await unfollowUser(userId);
+        setProfile({ ...profile, iFollow: false, followers: Math.max(0, profile.followers - 1) });
+        toast.success(`You unfollowed ${profile.user.name}.`);
+      } else {
+        await followUser(userId);
+        setProfile({ ...profile, iFollow: true, followers: profile.followers + 1 });
+        toast.success(`You'll be notified when ${profile.user.name} opens a desk.`);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "That didn't go through. Try again.");
+    } finally {
+      setFollowBusy(false);
+    }
+  };
+
+  const handleReuse = async (desk: Desk) => {
+    try {
+      const updated = await reuseDesk(desk.id);
+      setDesks((prev) => [updated, ...prev.filter((d) => d.id !== updated.id)]);
+      toast.success("Your desk is live again for 24 hours. People who follow you were notified.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't reuse that desk. Try again.");
     }
   };
 
@@ -166,7 +200,7 @@ export function ProfileView({
     );
   }
 
-  const { user, isOwner, iBlockedThem, theyBlockedMe } = profile;
+  const { user, isOwner, iBlockedThem, theyBlockedMe, iFollow, followers } = profile;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
@@ -210,11 +244,35 @@ export function ProfileView({
           <h1 className="text-2xl font-bold tracking-tight">{user.name}</h1>
           {user.email && <p className="mt-1 text-sm text-muted-foreground">{user.email}</p>}
           <p className="mt-1 text-xs text-muted-foreground">
-            Member since {new Date(user.created_at).toLocaleDateString()}
+            Member since {new Date(user.created_at).toLocaleDateString()} · {followers} follower
+            {followers === 1 ? "" : "s"}
           </p>
 
           {!isOwner && currentUser && (
             <div className="mt-4 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+              {!iBlockedThem && !theyBlockedMe && (
+                <button
+                  onClick={toggleFollow}
+                  disabled={followBusy}
+                  title="Get a notification whenever they open or reopen a desk"
+                  className={
+                    "inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-60 " +
+                    (iFollow
+                      ? "border border-border bg-card text-foreground hover:bg-muted"
+                      : "bg-brand-gradient text-primary-foreground shadow-soft")
+                  }
+                >
+                  {iFollow ? (
+                    <>
+                      <BellOff className="h-4 w-4" /> Following
+                    </>
+                  ) : (
+                    <>
+                      <Bell className="h-4 w-4" /> Follow
+                    </>
+                  )}
+                </button>
+              )}
               <button
                 onClick={toggleBlock}
                 disabled={blockBusy}
@@ -237,7 +295,7 @@ export function ProfileView({
               </button>
               {theyBlockedMe && (
                 <span className="text-xs text-muted-foreground">
-                  Note: this user has blocked you — their new desks won't appear on your dashboard.
+                  Note: this user has blocked you, so their desks won't appear for you.
                 </span>
               )}
             </div>
@@ -246,6 +304,7 @@ export function ProfileView({
       </div>
 
       {isOwner && <BillingCard />}
+      {isOwner && <PeopleLists />}
 
       <div className="mt-10">
         <h2 className="text-lg font-bold tracking-tight">
@@ -253,7 +312,7 @@ export function ProfileView({
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
           {isOwner
-            ? "Every desk you've created, including expired and hidden ones."
+            ? "Every desk you've created, including expired and hidden ones. An expired desk can be reused for another 24 hours."
             : "Desks this user currently has open."}
         </p>
 
@@ -283,6 +342,7 @@ export function ProfileView({
             }
             onDelete={isOwner ? handleDeleteDesk : undefined}
             onToggleHide={isOwner ? handleToggleHide : undefined}
+            onReuse={isOwner ? handleReuse : undefined}
           />
         </div>
       </div>

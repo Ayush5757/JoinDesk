@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Check, CreditCard, Loader2, Sparkles, Video } from "lucide-react";
 import { toast } from "sonner";
 import { Modal } from "./Modal";
-import { relativeTime, type Desk } from "@/lib/joindesk";
+import { relativeTime, timeLeftLabel, type Desk } from "@/lib/joindesk";
 import { recordDeskJoin } from "@/lib/users";
 import { ApiError } from "@/lib/api";
 import { formatDate, paymentInfoFromError, type PaymentRequiredInfo } from "@/lib/billing";
@@ -80,7 +80,12 @@ export function JoinDeskModal({
       ) : (
         <span className="inline-flex items-center gap-2 rounded-full bg-success-soft px-2.5 py-1 text-[11px] font-medium text-success">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" />
-          Active Desk (15d max)
+          Active · {timeLeftLabel(desk).toLowerCase()}
+        </span>
+      )}
+      {desk.subject && (
+        <span className="ml-2 inline-flex rounded-full border border-border bg-muted/60 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
+          {desk.subject}
         </span>
       )}
       <h2 className="mt-3 pr-8 text-xl font-bold leading-snug tracking-tight">{desk.title}</h2>
@@ -97,7 +102,7 @@ export function JoinDeskModal({
           />
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">Created by {desk.creatorName}</p>
-            <p className="text-xs text-muted-foreground">{relativeTime(desk.createdAt)}</p>
+            <p className="text-xs text-muted-foreground">{relativeTime(desk.activeAt)}</p>
           </div>
         </div>
       )}
@@ -114,10 +119,10 @@ export function JoinDeskModal({
           </p>
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
             {paywall.nextStartsAt
-              ? "You can join this Special desk from that date."
+              ? "You can join from that date."
               : paywall.lastEndedAt
-                ? `It ended on ${formatDate(new Date(Date.parse(paywall.lastEndedAt) - 1).toISOString())}. Pay again to keep joining Special desks.`
-                : "Pay to join Special desks. You can still see every desk and join all regular desks free."}
+                ? `It ended on ${formatDate(new Date(Date.parse(paywall.lastEndedAt) - 1).toISOString())}. Pay again to keep joining.`
+                : "A subscription unlocks desks and Random chat. You can still browse every desk."}
           </p>
           {!paywall.nextStartsAt && (
             <>
@@ -142,9 +147,18 @@ export function JoinDeskModal({
         </div>
       ) : (
         <>
+          <div className="mt-5 rounded-2xl bg-primary/5 p-4">
+            <p className="text-xs font-semibold text-foreground">A quiet room, at your own pace</p>
+            <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+              Join and get on with your own work. People drop in slowly, whenever the topic fits them, so don't wait for
+              anyone to arrive. Settle in, put your head down, and let the room fill up around you. It's a chill study
+              video, not a meeting.
+            </p>
+          </div>
+
           <button
             onClick={() => setAgreed((a) => !a)}
-            className="mt-5 flex w-full items-start gap-3 rounded-2xl border border-border p-4 text-left transition-colors hover:bg-muted/50"
+            className="mt-3 flex w-full items-start gap-3 rounded-2xl border border-border p-4 text-left transition-colors hover:bg-muted/50"
           >
             <span
               className={

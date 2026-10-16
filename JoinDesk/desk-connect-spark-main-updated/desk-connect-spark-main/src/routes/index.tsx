@@ -45,7 +45,7 @@ const FAQ_ITEMS = [
   {
     question: "How long do desks stay open?",
     answer:
-      "Each desk automatically expires after 15 days, so the list you browse always shows people who are actively online right now, not stale sessions.",
+      "Each desk stays up for 24 hours, so the list you browse always shows people who are online right now, not stale sessions. Its creator can reuse it for another 24 hours any time.",
   },
 ];
 
@@ -158,7 +158,12 @@ function Index() {
       }>(`/api/desks?${params.toString()}`);
 
       const mapped = rows.map(deskFromApi);
-      setDesks((prev) => (reset ? mapped : [...prev, ...mapped]));
+      // A new desk can appear while someone scrolls (pages are cut by position), so never show one twice.
+      setDesks((prev) => {
+        if (reset) return mapped;
+        const seen = new Set(prev.map((d) => d.id));
+        return [...prev, ...mapped.filter((d) => !seen.has(d.id))];
+      });
       setHasMore(more);
       setOffset(fromOffset + mapped.length);
     } catch (err) {
@@ -231,6 +236,7 @@ function Index() {
     try {
       const { desk } = await api.post<{ desk: DeskApiRow }>("/api/desks", {
         title: input.title,
+        subject: input.subject,
         description: input.description,
         google_meet_link: input.meetLink,
         topic: activeTopic === "All Desks" ? "Research" : activeTopic,
@@ -294,7 +300,7 @@ function Index() {
       </main>
 
       <footer className="border-t border-border/60 py-8 text-center text-xs text-muted-foreground">
-        JoinDesk — desks auto-expire after 15 days to keep listings fresh.
+        JoinDesk — desks stay up for 24 hours to keep listings fresh.
       </footer>
 
       <CreateDeskModal

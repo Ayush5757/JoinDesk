@@ -53,6 +53,7 @@ function ProfilePage() {
     try {
       await api.post<{ desk: DeskApiRow }>("/api/desks", {
         title: input.title,
+        subject: input.subject,
         description: input.description,
         google_meet_link: input.meetLink,
         topic: "Research",

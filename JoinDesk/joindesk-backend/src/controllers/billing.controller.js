@@ -1,6 +1,6 @@
 import { supabaseAdmin } from "../config/supabase.js";
 import { getBillingConfig } from "../config/billing.js";
-import { loadAccessContext, loadPaymentSettings, summarizeAccess } from "../services/access.js";
+import { loadAccessContext, loadPaymentSettings, paywallFlags, summarizeAccess } from "../services/access.js";
 import {
   createRazorpayOrder,
   verifyCheckoutSignature,
@@ -19,11 +19,13 @@ export async function getConfig(req, res) {
     const cfg = getBillingConfig();
     const payment = await loadPaymentSettings(cfg);
     return res.status(200).json({
-      enabled: payment.enabled,
+      enabled: Object.values(paywallFlags(payment, Date.now(), cfg)).some(Boolean),
+      paywall: paywallFlags(payment, Date.now(), cfg),
+      freeUntil: payment.freeUntil,
       configured: cfg.razorpayConfigured,
       priceInr: payment.amountInr,
       days: cfg.days,
-      trialDays: cfg.trialDays,
+      trialDays: payment.trialDays,
       message: payment.message,
     });
   } catch (err) {
@@ -52,11 +54,13 @@ export async function getStatus(req, res) {
       .limit(5);
 
     return res.status(200).json({
-      enabled: ctx.payment.enabled,
+      enabled: Object.values(paywallFlags(ctx.payment, Date.now(), cfg)).some(Boolean),
+      paywall: paywallFlags(ctx.payment, Date.now(), cfg),
+      freeUntil: ctx.payment.freeUntil,
       configured: cfg.razorpayConfigured,
       priceInr: ctx.payment.amountInr,
       days: cfg.days,
-      trialDays: cfg.trialDays,
+      trialDays: ctx.payment.trialDays,
       message: ctx.payment.message,
       access: summarizeAccess(ctx),
       payments: payments || [],

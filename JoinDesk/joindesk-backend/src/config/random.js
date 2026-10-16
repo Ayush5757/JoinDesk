@@ -6,8 +6,8 @@ const num = (v, d) => (Number.isFinite(Number(v)) && v !== undefined && v !== ""
 /**
  * Random Chat settings, all from .env:
  *   RANDOM_CHAT_ENABLED  true/false   master kill switch (default true)
- *   RANDOM_CHAT_PAID     true/false   false = free for every logged-in user (default)
- *                                     true  = only people with active access (subscription / "all desks" free access)
+ *   RANDOM_CHAT_PAID     true/false   only the STARTING value of the "Random chat needs a subscription"
+ *                                     switch. Once you save Payments in the admin panel, the panel decides.
  *   RANDOM_ICE_SERVERS   optional JSON, e.g. a TURN server later:
  *                        [{"urls":"stun:stun.l.google.com:19302"},{"urls":"turn:x","username":"u","credential":"p"}]
  *   RANDOM_AUTO_RESTRICT_REPORTS  how many different people must report someone (7 days) before

@@ -78,6 +78,8 @@ function waitForIce(pc: RTCPeerConnection): Promise<void> {
  */
 export class RandomClient {
   private pc: RTCPeerConnection | null = null;
+  // One stream that holds BOTH the other person's audio and video tracks, however the browser groups them.
+  private remote: MediaStream | null = null;
   private dc: RTCDataChannel | null = null;
   private roomId: string | null = null;
   private lastRoom: string | null = null;
@@ -185,6 +187,7 @@ export class RandomClient {
     }
     this.dc = null;
     this.pc = null;
+    this.remote = null;
     this.roomId = null;
     this.h.onRemote(null);
   }
@@ -258,7 +261,24 @@ export class RandomClient {
     this.pc = pc;
     this.stream.getTracks().forEach((t) => pc.addTrack(t, this.stream));
 
-    pc.ontrack = (e) => this.h.onRemote(e.streams[0] ?? new MediaStream([e.track]));
+    // Audio and video arrive as separate "track" events. Some browsers give each its own (or no)
+    // stream, which used to replace the video's stream with an audio-only one and lose the sound.
+    // So we always collect every incoming track into ONE stream.
+    pc.ontrack = (e) => {
+      if (!this.remote) this.remote = new MediaStream();
+      if (!this.remote.getTracks().some((t) => t.id === e.track.id)) this.remote.addTrack(e.track);
+      this.h.onRemote(this.remote);
+    };
+    // make sure we both send and receive audio and video
+    pc.getTransceivers().forEach((t) => {
+      if (t.sender.track) {
+        try {
+          t.direction = "sendrecv";
+        } catch {
+          /* already fine */
+        }
+      }
+    });
     pc.onconnectionstatechange = () => this.onConnection(run);
 
     if (v.role === "caller") {

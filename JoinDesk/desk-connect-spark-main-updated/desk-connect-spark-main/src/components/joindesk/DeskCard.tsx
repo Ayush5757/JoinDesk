@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowUpRight, Eye, EyeOff, Pencil, Sparkles, Trash2, Users } from "lucide-react";
-import { relativeTime, type Desk } from "@/lib/joindesk";
+import { ArrowUpRight, Eye, EyeOff, Pencil, RotateCcw, Sparkles, Trash2, Users } from "lucide-react";
+import { isExpired, relativeTime, timeLeftLabel, type Desk } from "@/lib/joindesk";
 
 export function DeskCard({
   desk,
@@ -10,6 +10,7 @@ export function DeskCard({
   onEdit,
   onDelete,
   onToggleHide,
+  onReuse,
 }: {
   desk: Desk;
   onJoin: (d: Desk) => void;
@@ -18,9 +19,12 @@ export function DeskCard({
   onEdit?: ((d: Desk) => void) | undefined;
   onDelete?: ((d: Desk) => void) | undefined;
   onToggleHide?: ((d: Desk) => void) | undefined;
+  // The creator reopens an expired desk for another 24 hours.
+  onReuse?: ((d: Desk) => void) | undefined;
 }) {
   const hasOwnerActions = isOwn && (onViewJoiners || onEdit || onDelete || onToggleHide);
   const isSpecial = desk.isSpecial;
+  const expired = isExpired(desk);
 
   return (
     <article
@@ -51,7 +55,7 @@ export function DeskCard({
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold">{desk.creatorName}</p>
               <p className="truncate text-xs text-muted-foreground">
-                {relativeTime(desk.createdAt)}
+                {relativeTime(desk.activeAt)}
               </p>
             </div>
           </Link>
@@ -66,21 +70,42 @@ export function DeskCard({
       {isSpecial ? (
         <p className="mt-4 text-[11px] font-medium text-special">By JoinDesk · Always available</p>
       ) : (
-        <span className="mt-4 inline-flex w-fit items-center gap-2 rounded-full bg-success-soft px-2.5 py-1 text-[11px] font-medium text-success">
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-70" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
+        expired ? (
+          <span className="mt-4 inline-flex w-fit items-center gap-2 rounded-full bg-muted px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+            <span className="h-2 w-2 rounded-full bg-muted-foreground/50" />
+            Expired · only you can see it
           </span>
-          Active Desk (15d max)
-        </span>
+        ) : (
+          <span className="mt-4 inline-flex w-fit items-center gap-2 rounded-full bg-success-soft px-2.5 py-1 text-[11px] font-medium text-success">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-70" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
+            </span>
+            Active · {timeLeftLabel(desk).toLowerCase()}
+          </span>
+        )
       )}
 
-      <h3 className="mt-3 text-base font-semibold leading-snug tracking-tight">{desk.title}</h3>
+      {desk.subject && (
+        <span className="mt-3 inline-flex w-fit rounded-full border border-border bg-muted/60 px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
+          {desk.subject}
+        </span>
+      )}
+      <h3 className={(desk.subject ? "mt-2" : "mt-3") + " text-base font-semibold leading-snug tracking-tight"}>{desk.title}</h3>
       <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
         {desk.description || "No description provided."}
       </p>
 
       <div className="mt-5 flex items-center gap-2">
+        {expired && isOwn && onReuse ? (
+          <button
+            onClick={() => onReuse(desk)}
+            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-foreground px-4 py-2.5 text-sm font-semibold text-background shadow-soft transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98]"
+          >
+            <RotateCcw className="h-4 w-4" />
+            Reuse for 24 hours
+          </button>
+        ) : (
         <button
           onClick={() => onJoin(desk)}
           className={
@@ -91,6 +116,7 @@ export function DeskCard({
           Join Desk
           <ArrowUpRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
         </button>
+        )}
       </div>
 
       {hasOwnerActions && (

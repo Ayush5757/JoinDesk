@@ -1,9 +1,11 @@
 import { supabaseAdmin } from "../config/supabase.js";
 import { notifySpecialUsersOfNewDesk } from "../services/push.js";
 import { loadAccessContext, evaluateAccess, paymentInfo } from "../services/access.js";
+import { deskCutoffIso, getDeskConfig } from "../config/desks.js";
 
 const MEETING_LINK_REGEX = /^https?:\/\/.+\..+/i; // any platform: Google Meet, Zoom, Teams, etc.
-const DESK_LIFESPAN_DAYS = 15;
+const MAX_SUBJECT = 60;
+const REUSE_NOTIFY_GAP_MS = 60 * 60 * 1000; // don't buzz followers again within an hour
 
 /**
  * The meeting link is the thing the paywall protects, so desk LISTS never
@@ -16,6 +18,23 @@ function withoutLink(row) {
   const { google_meet_link, ...rest } = row;
   return rest;
 }
+
+/**
+ * Adds `expires_at` (when a normal desk stops being listed unless its creator reuses it).
+ * null for Special desks, which never expire. Lets the frontend show "ends in 5h"
+ * without knowing the lifespan setting.
+ */
+function withExpiry(row) {
+  if (!row) return row;
+  if (row.is_special || !row.active_at) return { ...row, expires_at: null };
+  return {
+    ...row,
+    expires_at: new Date(Date.parse(row.active_at) + getDeskConfig().lifespanHours * 3_600_000).toISOString(),
+  };
+}
+
+/** Public shape of a desk in lists: no meeting link, with its expiry. */
+const publicDesk = (row) => withExpiry(withoutLink(row));
 
 /**
  * Returns the list of user ids whose desks should be hidden from `userId`
@@ -46,14 +65,19 @@ async function getAdminBlockedCreatorIds() {
 /**
  * POST /api/desks
  * Creates a new desk. Requires auth (requireAuth middleware).
- * Body: { title, description?, tags?, google_meet_link, topic? }
+ * Body: { title, subject, description?, tags?, google_meet_link, topic? }
+ * `subject` is the field the desk is about (Biology, Physics, ...) and is required.
  */
 export async function createDesk(req, res) {
   try {
-    const { title, description, tags, google_meet_link, topic } = req.body;
+    const { title, subject, description, tags, google_meet_link, topic } = req.body;
 
     if (!title || !title.trim()) {
       return res.status(400).json({ error: "title is required" });
+    }
+    const cleanSubject = typeof subject === "string" ? subject.trim().slice(0, MAX_SUBJECT) : "";
+    if (!cleanSubject) {
+      return res.status(400).json({ error: "Tell us the subject or field (e.g. Biology, Physics, Computer Science)" });
     }
     if (!google_meet_link || !MEETING_LINK_REGEX.test(google_meet_link.trim())) {
       return res.status(400).json({ error: "A valid meeting link is required" });
@@ -77,6 +101,7 @@ export async function createDesk(req, res) {
       .from("desks")
       .insert({
         title: title.trim(),
+        subject: cleanSubject,
         description: description?.trim() || "",
         tags: Array.isArray(tags) ? tags : [],
         google_meet_link: google_meet_link.trim(),
@@ -90,18 +115,22 @@ export async function createDesk(req, res) {
 
     if (error) throw error;
 
-    // Notify anyone this creator has marked "Special" — fire-and-forget so a
-    // slow/broken mail server never delays or breaks desk creation.
-    notifySpecialUsersOfNewDesk_bestEffort(req.user.id, profile.name, data);
+    // Tell everyone who follows this creator (best effort, never delays creating the desk).
+    await notifyFollowers_bestEffort(req.user.id, profile.name, data, { reused: false });
 
-    return res.status(201).json({ desk: data });
+    return res.status(201).json({ desk: withExpiry(data) });
   } catch (err) {
     console.error("createDesk error:", err);
     return res.status(500).json({ error: "Failed to create desk" });
   }
 }
 
-async function notifySpecialUsersOfNewDesk_bestEffort(ownerId, ownerName, desk) {
+/**
+ * Followers are the rows in `special_users` for this creator: anyone can follow a
+ * creator themselves (POST /api/users/:id/follow), and they get a push notification
+ * whenever that creator opens or reopens a desk.
+ */
+async function notifyFollowers_bestEffort(ownerId, ownerName, desk, opts) {
   try {
     // 1. Who has this creator marked "Special"?
     const { data: specialRows, error: specialError } = await supabaseAdmin
@@ -127,31 +156,31 @@ async function notifySpecialUsersOfNewDesk_bestEffort(ownerId, ownerName, desk) 
 
     await notifySpecialUsersOfNewDesk(
       { name: ownerName },
-      { id: desk.id, title: desk.title, topic: desk.topic, description: desk.description },
-      subscriptions
+      { id: desk.id, title: desk.title, topic: desk.topic, subject: desk.subject, description: desk.description },
+      subscriptions,
+      opts
     );
   } catch (err) {
-    console.error("notifySpecialUsersOfNewDesk error (non-fatal):", err);
+    console.error("notifyFollowers error (non-fatal):", err);
   }
 }
 
 /**
  * GET /api/desks
- * Returns active desks (created within the last 15 days), newest first.
+ * Returns active desks (opened or reused within the last DESK_LIFESPAN_HOURS, 24 by default),
+ * most recently opened first.
  * If the requester is logged in, desks created by anyone who has blocked
  * them are excluded — from both the plain listing and search.
  *
  * Query params (all optional):
  *   limit   - how many desks to return per page (default 15, max 50)
  *   offset  - how many desks to skip (used for "load 15 more on scroll")
- *   search  - matched against title/description on the DATABASE, not the client
+ *   search  - matched against title, subject and description on the DATABASE, not the client
  *   topic   - filter to a single topic (ignored if "All Desks")
  */
 export async function getDesks(req, res) {
   try {
-    const cutoff = new Date(
-      Date.now() - DESK_LIFESPAN_DAYS * 24 * 60 * 60 * 1000
-    ).toISOString();
+    const cutoff = deskCutoffIso();
 
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 15, 1), 50);
     const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
@@ -171,12 +200,12 @@ export async function getDesks(req, res) {
       .select("*", { count: "exact" })
       .eq("is_special", false) // Special desks live in their own row/page, not the main grid.
       .eq("is_hidden", false) // Creator paused/hid it from the public dashboard.
-      .gte("created_at", cutoff)
-      .order("created_at", { ascending: false })
+      .gte("active_at", cutoff)
+      .order("active_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (search) {
-      query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
+      query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%,subject.ilike.%${search}%`);
     }
     if (topic && topic !== "All Desks") {
       query = query.eq("topic", topic);
@@ -192,7 +221,7 @@ export async function getDesks(req, res) {
     const total = count ?? 0;
     const hasMore = offset + data.length < total;
 
-    return res.status(200).json({ desks: data.map(withoutLink), hasMore, total });
+    return res.status(200).json({ desks: data.map(publicDesk), hasMore, total });
   } catch (err) {
     console.error("getDesks error:", err);
     return res.status(500).json({ error: "Failed to fetch desks" });
@@ -231,7 +260,7 @@ export async function getSpecialDesks(req, res) {
       .range(offset, offset + limit - 1);
 
     if (search) {
-      query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
+      query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%,subject.ilike.%${search}%`);
     }
 
     const { data, error, count } = await query;
@@ -240,7 +269,7 @@ export async function getSpecialDesks(req, res) {
     const total = count ?? 0;
     const hasMore = offset + data.length < total;
 
-    return res.status(200).json({ desks: data.map(withoutLink), hasMore, total });
+    return res.status(200).json({ desks: data.map(publicDesk), hasMore, total });
   } catch (err) {
     console.error("getSpecialDesks error:", err);
     return res.status(500).json({ error: "Failed to fetch special desks" });
@@ -259,7 +288,7 @@ export async function getSpecialDesks(req, res) {
 export async function updateDesk(req, res) {
   try {
     const { id } = req.params;
-    const { title, description, google_meet_link, topic, is_special, is_hidden } = req.body;
+    const { title, subject, description, google_meet_link, topic, is_special, is_hidden } = req.body;
 
     const { data: desk, error: fetchError } = await supabaseAdmin
       .from("desks")
@@ -281,6 +310,11 @@ export async function updateDesk(req, res) {
     if (title !== undefined) {
       if (!title.trim()) return res.status(400).json({ error: "title is required" });
       updates.title = title.trim();
+    }
+    if (subject !== undefined) {
+      const cleanSubject = typeof subject === "string" ? subject.trim().slice(0, MAX_SUBJECT) : "";
+      if (!cleanSubject) return res.status(400).json({ error: "Subject can't be empty" });
+      updates.subject = cleanSubject;
     }
     if (description !== undefined) updates.description = description?.trim() || "";
     if (topic !== undefined && topic?.trim()) updates.topic = topic.trim();
@@ -313,7 +347,7 @@ export async function updateDesk(req, res) {
 
     if (error) throw error;
 
-    return res.status(200).json({ desk: data });
+    return res.status(200).json({ desk: withExpiry(data) });
   } catch (err) {
     console.error("updateDesk error:", err);
     return res.status(500).json({ error: "Failed to update desk" });
@@ -371,7 +405,7 @@ export async function getMyDesks(req, res) {
       .from("desks")
       .select("*", { count: "exact" })
       .eq("creator_id", req.user.id)
-      .order("created_at", { ascending: false })
+      .order("active_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (error) throw error;
@@ -379,7 +413,7 @@ export async function getMyDesks(req, res) {
     const total = count ?? 0;
     const hasMore = offset + data.length < total;
 
-    return res.status(200).json({ desks: data, hasMore, total });
+    return res.status(200).json({ desks: data.map(withExpiry), hasMore, total });
   } catch (err) {
     console.error("getMyDesks error:", err);
     return res.status(500).json({ error: "Failed to fetch your desks" });
@@ -419,14 +453,12 @@ export async function getUserDesks(req, res) {
       .from("desks")
       .select("*", { count: "exact" })
       .eq("creator_id", id)
-      .order("created_at", { ascending: false })
+      .order("active_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (!isOwner) {
-      const cutoff = new Date(
-        Date.now() - DESK_LIFESPAN_DAYS * 24 * 60 * 60 * 1000
-      ).toISOString();
-      query = query.gte("created_at", cutoff).eq("is_hidden", false);
+      // other people only see this person's live desks: Special desks never expire
+      query = query.or(`is_special.eq.true,active_at.gte.${deskCutoffIso()}`).eq("is_hidden", false);
     }
 
     const { data, error, count } = await query;
@@ -436,7 +468,7 @@ export async function getUserDesks(req, res) {
     const hasMore = offset + data.length < total;
 
     return res.status(200).json({
-      desks: isOwner ? data : data.map(withoutLink),
+      desks: isOwner ? data.map(withExpiry) : data.map(publicDesk),
       hasMore,
       total,
     });
@@ -463,12 +495,29 @@ export async function joinDesk(req, res) {
 
     const { data: desk, error: deskError } = await supabaseAdmin
       .from("desks")
-      .select("id, creator_id, google_meet_link, is_special")
+      .select("id, creator_id, google_meet_link, is_special, active_at")
       .eq("id", id)
       .single();
 
     if (deskError || !desk) {
       return res.status(404).json({ error: "Desk not found" });
+    }
+
+    if (desk.creator_id !== req.user.id && !req.user.isAdmin) {
+      // an expired normal desk can't be joined (not even from an old link)
+      if (!desk.is_special && desk.active_at < deskCutoffIso()) {
+        return res.status(404).json({ error: "This desk has ended" });
+      }
+      // the creator blocked this person: it's as if the desk doesn't exist for them
+      if (desk.creator_id) {
+        const { data: blocked } = await supabaseAdmin
+          .from("user_blocks")
+          .select("id")
+          .eq("blocker_id", desk.creator_id)
+          .eq("blocked_id", req.user.id)
+          .maybeSingle();
+        if (blocked) return res.status(404).json({ error: "Desk not found" });
+      }
     }
 
     // The desk's own creator is never charged, but their visit is still
@@ -608,5 +657,46 @@ export async function getDeskJoiners(req, res) {
   } catch (err) {
     console.error("getDeskJoiners error:", err);
     return res.status(500).json({ error: "Failed to fetch joiners" });
+  }
+}
+
+/**
+ * POST /api/desks/:id/reuse
+ * The creator reopens one of their normal desks (usually an expired one, from their
+ * profile). It becomes active again for another DESK_LIFESPAN_HOURS, goes back to the
+ * top of the list, is unhidden, and the people who follow the creator get a
+ * notification (not more than once an hour per desk).
+ */
+export async function reuseDesk(req, res) {
+  try {
+    const { id } = req.params;
+    const { data: desk, error: fetchError } = await supabaseAdmin
+      .from("desks")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (fetchError || !desk) return res.status(404).json({ error: "Desk not found" });
+    if (desk.creator_id !== req.user.id) {
+      return res.status(403).json({ error: "You can only reuse your own desks" });
+    }
+    if (desk.is_special) return res.status(400).json({ error: "Special desks never expire" });
+
+    const previous = Date.parse(desk.active_at);
+    const now = Date.now();
+    const { data, error } = await supabaseAdmin
+      .from("desks")
+      .update({ active_at: new Date(now).toISOString(), is_hidden: false })
+      .eq("id", id)
+      .select()
+      .single();
+    if (error) throw error;
+
+    if (!Number.isFinite(previous) || now - previous >= REUSE_NOTIFY_GAP_MS) {
+      await notifyFollowers_bestEffort(req.user.id, data.creator_name, data, { reused: true });
+    }
+    return res.status(200).json({ desk: withExpiry(data) });
+  } catch (err) {
+    console.error("reuseDesk error:", err);
+    return res.status(500).json({ error: "Failed to reuse the desk" });
   }
 }

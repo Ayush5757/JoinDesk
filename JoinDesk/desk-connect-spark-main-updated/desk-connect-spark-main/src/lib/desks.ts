@@ -43,6 +43,7 @@ export async function searchDesksFull(query: string) {
 
 export type EditableDeskFields = {
   title: string;
+  subject: string;
   description: string;
   meetLink: string;
   topic: string;
@@ -56,6 +57,7 @@ export type EditableDeskFields = {
 export async function updateDesk(deskId: string, fields: Partial<EditableDeskFields>) {
   const body: Record<string, unknown> = {};
   if (fields.title !== undefined) body["title"] = fields.title;
+  if (fields.subject) body["subject"] = fields.subject; // required for normal desks, so never sent empty
   if (fields.description !== undefined) body["description"] = fields.description;
   if (fields.meetLink !== undefined) body["google_meet_link"] = fields.meetLink;
   if (fields.topic !== undefined) body["topic"] = fields.topic;
@@ -76,5 +78,14 @@ export async function setDeskHidden(deskId: string, hidden: boolean) {
   const { desk } = await api.patch<{ desk: DeskApiRow }>(`/api/desks/${deskId}`, {
     is_hidden: hidden,
   });
+  return deskFromApi(desk);
+}
+
+/**
+ * Reopens one of your own desks for another 24 hours (usually an expired one, from your
+ * profile). It goes back to the top of the list and your followers get a notification.
+ */
+export async function reuseDesk(deskId: string) {
+  const { desk } = await api.post<{ desk: DeskApiRow }>(`/api/desks/${deskId}/reuse`);
   return deskFromApi(desk);
 }

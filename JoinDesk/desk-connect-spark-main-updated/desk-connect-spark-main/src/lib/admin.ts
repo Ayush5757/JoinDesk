@@ -283,7 +283,18 @@ export type ManualSub = {
   created_at: string;
 };
 
-export type PaymentSettings = { enabled: boolean; amountInr: number; message: string };
+export type PaymentSettings = {
+  // The master switch: false = everything is free for everyone.
+  paid: boolean;
+  // New accounts get this many free days after signing up (while paid is on).
+  trialDays: number;
+  // Which parts need a subscription once paid is on (all on by default).
+  features: { normalDesks: boolean; specialDesks: boolean; randomChat: boolean };
+  // Optional: everything stays free until the end of this day (YYYY-MM-DD).
+  freeUntil: string | null;
+  amountInr: number;
+  message: string;
+};
 
 export type UserActivity = {
   user: {
@@ -414,7 +425,10 @@ export function adminGetPaymentSettings() {
 }
 
 export function adminSavePaymentSettings(input: PaymentSettings) {
-  return adminApi.patch<PaymentSettings>("/api/admin/payment-settings", input);
+  return adminApi.patch<PaymentSettings>("/api/admin/payment-settings", {
+    ...input,
+    freeUntil: input.freeUntil ?? "",
+  });
 }
 
 // =========================
@@ -486,4 +500,18 @@ export function adminResolveRandomReport(id: string, status: "dismissed" | "acti
 /** Dismisses every open report against someone (also lifts their automatic pause). */
 export function adminClearRandomReportsAgainst(userId: string) {
   return adminApi.post<{ ok: boolean }>(`/api/admin/users/${userId}/random-reports/clear`);
+}
+
+// =========================
+// Focus Timer scenes (background videos)
+// =========================
+import type { Scene } from "@/lib/pomodoro";
+
+export function adminGetScenes() {
+  return adminApi.get<{ scenes: Scene[] }>("/api/admin/pomodoro-scenes");
+}
+
+/** Replaces the whole list. `source` can be a YouTube link / id, or a direct https .mp4/.webm link. */
+export function adminSaveScenes(scenes: Pick<Scene, "title" | "category" | "source" | "music">[] & Partial<Scene>[]) {
+  return adminApi.patch<{ scenes: Scene[] }>("/api/admin/pomodoro-scenes", { scenes });
 }

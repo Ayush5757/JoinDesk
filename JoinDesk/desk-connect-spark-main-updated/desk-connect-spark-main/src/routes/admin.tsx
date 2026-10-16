@@ -28,6 +28,7 @@ import {
   Loader2,
   Timer,
   Video,
+  Clapperboard,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { Navbar } from "@/components/joindesk/Navbar";
@@ -38,6 +39,7 @@ import { AdminAnalyticsTab } from "@/components/joindesk/AdminAnalyticsTab";
 import { AdminAccessTab } from "@/components/joindesk/AdminAccessTab";
 import { AdminTrackerTab } from "@/components/joindesk/AdminTrackerTab";
 import { AdminRandomTab } from "@/components/joindesk/AdminRandomTab";
+import { AdminPomodoroTab } from "@/components/joindesk/AdminPomodoroTab";
 import { AdminUserDetailModal } from "@/components/joindesk/AdminUserDetailModal";
 import { AccessBadge, fmtDay, saveBlob, timeAgo } from "@/components/joindesk/adminShared";
 import { loginWithGoogle, logout, restoreSession, BlockedError, type AppUser } from "@/lib/auth";
@@ -191,7 +193,7 @@ function AdminGate() {
 
 function AdminPanel({ onLock }: { onLock: () => void }) {
   const [tab, setTab] = useState<
-    "desks" | "analytics" | "access" | "users" | "feedback" | "notice" | "tracker" | "random"
+    "desks" | "analytics" | "access" | "users" | "feedback" | "notice" | "tracker" | "random" | "focus"
   >("desks");
 
   return (
@@ -300,6 +302,17 @@ function AdminPanel({ onLock }: { onLock: () => void }) {
         >
           <Video className="h-4 w-4" /> Random chat
         </button>
+        <button
+          onClick={() => setTab("focus")}
+          className={
+            "inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-colors " +
+            (tab === "focus"
+              ? "bg-card shadow-soft"
+              : "text-muted-foreground hover:text-foreground")
+          }
+        >
+          <Clapperboard className="h-4 w-4" /> Focus scenes
+        </button>
       </div>
 
       <div className="mt-6">
@@ -317,6 +330,8 @@ function AdminPanel({ onLock }: { onLock: () => void }) {
           <AdminTrackerTab />
         ) : tab === "random" ? (
           <AdminRandomTab />
+        ) : tab === "focus" ? (
+          <AdminPomodoroTab />
         ) : (
           <AdminNoticeTab />
         )}

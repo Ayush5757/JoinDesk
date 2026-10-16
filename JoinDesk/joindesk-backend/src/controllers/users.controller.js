@@ -27,6 +27,7 @@ export async function getPublicProfile(req, res) {
     const isOwner = req.user?.id === id;
     let iBlockedThem = false;
     let theyBlockedMe = false;
+    let iFollow = false;
 
     if (req.user && !isOwner) {
       const [{ data: a }, { data: b }] = await Promise.all([
@@ -45,7 +46,20 @@ export async function getPublicProfile(req, res) {
       ]);
       iBlockedThem = Boolean(a);
       theyBlockedMe = Boolean(b);
+
+      const { data: f } = await supabaseAdmin
+        .from("special_users")
+        .select("id")
+        .eq("owner_id", id)
+        .eq("special_user_id", req.user.id)
+        .maybeSingle();
+      iFollow = Boolean(f);
     }
+
+    const { count: followers } = await supabaseAdmin
+      .from("special_users")
+      .select("id", { count: "exact", head: true })
+      .eq("owner_id", id);
 
     return res.status(200).json({
       user: {
@@ -61,6 +75,8 @@ export async function getPublicProfile(req, res) {
       isOwner,
       iBlockedThem,
       theyBlockedMe,
+      iFollow,
+      followers: followers ?? 0,
     });
   } catch (err) {
     console.error("getPublicProfile error:", err);
@@ -105,8 +121,9 @@ export async function updateAvatar(req, res) {
 
 /**
  * POST /api/users/:id/block
- * Blocks the target user. Any desks that user creates from now on are
- * hidden from the blocker's dashboard/search (see desks.controller.js).
+ * The blocker stops being visible to the target: the blocker's desks are hidden from the
+ * target's dashboard, search and profile view, and the target can't join them
+ * (see desks.controller.js).
  */
 export async function blockUser(req, res) {
   try {
@@ -120,6 +137,9 @@ export async function blockUser(req, res) {
       .upsert({ blocker_id: req.user.id, blocked_id: id }, { onConflict: "blocker_id,blocked_id" });
 
     if (error) throw error;
+
+    // someone you block can't keep following you
+    await supabaseAdmin.from("special_users").delete().eq("owner_id", req.user.id).eq("special_user_id", id);
 
     return res.status(200).json({ blocked: true });
   } catch (err) {
@@ -252,5 +272,69 @@ export async function getMySpecial(req, res) {
   } catch (err) {
     console.error("getMySpecial error:", err);
     return res.status(500).json({ error: "Failed to fetch special users" });
+  }
+}
+
+/**
+ * POST /api/users/:id/follow
+ * Anyone can follow any creator. Followers get a push notification whenever that
+ * creator opens or reopens a desk. (Stored in `special_users`: owner = the creator,
+ * special_user_id = the follower.) Not allowed if the creator has blocked you.
+ */
+export async function followUser(req, res) {
+  try {
+    const { id } = req.params;
+    if (id === req.user.id) return res.status(400).json({ error: "You can't follow yourself" });
+
+    const { data: target } = await supabaseAdmin.from("users").select("id").eq("id", id).maybeSingle();
+    if (!target) return res.status(404).json({ error: "User not found" });
+
+    const { data: blocked } = await supabaseAdmin
+      .from("user_blocks")
+      .select("id")
+      .eq("blocker_id", id)
+      .eq("blocked_id", req.user.id)
+      .maybeSingle();
+    if (blocked) return res.status(403).json({ error: "You can't follow this person" });
+
+    const { error } = await supabaseAdmin
+      .from("special_users")
+      .upsert({ owner_id: id, special_user_id: req.user.id }, { onConflict: "owner_id,special_user_id" });
+    if (error) throw error;
+    return res.status(200).json({ following: true });
+  } catch (err) {
+    console.error("followUser error:", err);
+    return res.status(500).json({ error: "Failed to follow" });
+  }
+}
+
+/** DELETE /api/users/:id/follow */
+export async function unfollowUser(req, res) {
+  try {
+    const { error } = await supabaseAdmin
+      .from("special_users")
+      .delete()
+      .eq("owner_id", req.params.id)
+      .eq("special_user_id", req.user.id);
+    if (error) throw error;
+    return res.status(200).json({ following: false });
+  } catch (err) {
+    console.error("unfollowUser error:", err);
+    return res.status(500).json({ error: "Failed to unfollow" });
+  }
+}
+
+/** GET /api/users/me/following -> the people I follow */
+export async function getMyFollowing(req, res) {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("special_users")
+      .select("owner_id, users:owner_id (id, name, avatar_url)")
+      .eq("special_user_id", req.user.id);
+    if (error) throw error;
+    return res.status(200).json({ following: (data || []).map((r) => r.users).filter(Boolean) });
+  } catch (err) {
+    console.error("getMyFollowing error:", err);
+    return res.status(500).json({ error: "Failed to load who you follow" });
   }
 }

@@ -331,3 +331,7 @@ Run the "Study Tracker" block at the bottom of schema.sql once in Supabase. API:
 
 ## Random Chat (1-on-1 video)
 Run the "Random Chat" block at the bottom of schema.sql once in Supabase. API: /api/random/*. Env: RANDOM_CHAT_ENABLED, RANDOM_CHAT_PAID, RANDOM_AUTO_RESTRICT_REPORTS, RANDOM_ICE_SERVERS (see .env.example). Video is peer-to-peer (WebRTC); the backend only matches people and passes the handshake over plain HTTP, so it works on Vercel.
+
+
+## Desks, follow, paid/free, Focus scenes
+Run the "24-hour desks, subject, reuse" block at the bottom of schema.sql once. Normal desks stay listed for DESK_LIFESPAN_HOURS (24) after they are opened or reused; creators reuse them from their profile (POST /api/desks/:id/reuse). Anyone can follow a creator (POST /api/users/:id/follow) and gets a push notification when that creator opens or reuses a desk. Free/paid is one master switch plus free days for new accounts, set in the admin panel (Payments). Focus Timer background videos are managed in the admin panel (Focus scenes).

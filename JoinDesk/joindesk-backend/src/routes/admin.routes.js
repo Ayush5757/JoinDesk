@@ -44,6 +44,8 @@ import {
   clearReportsAgainst,
 } from "../controllers/adminRandom.controller.js";
 
+import { getScenes, saveScenes } from "../controllers/pomodoro.controller.js";
+
 const router = Router();
 
 // Unlocking needs a normal login (requireAuth) plus the admin password.
@@ -93,6 +95,10 @@ router.patch("/tracker-settings", requireAdmin, updateTrackerSettings);
 router.get("/random-reports", requireAdmin, listRandomReports);
 router.post("/random-reports/:id/resolve", requireAdmin, resolveRandomReport);
 router.post("/users/:id/random-reports/clear", requireAdmin, clearReportsAgainst);
+
+// Focus Timer background videos
+router.get("/pomodoro-scenes", requireAdmin, getScenes);
+router.patch("/pomodoro-scenes", requireAdmin, saveScenes);
 
 router.get("/feedback", requireAdmin, listFeedback);
 router.patch("/feedback/:id/status", requireAdmin, updateFeedbackStatus);

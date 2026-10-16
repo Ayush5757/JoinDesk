@@ -82,15 +82,16 @@ export async function sendPushToSubscriptions(subscriptions, payload) {
  * replaces — desks.controller.js calls this instead of the email service.
  *
  * @param {{ name: string }} creator
- * @param {{ id: string, title: string, topic: string, description?: string }} desk
+ * @param {{ id: string, title: string, topic: string, subject?: string, description?: string }} desk
  * @param {{ endpoint: string, p256dh: string, auth: string }[]} subscriptions
  */
-export async function notifySpecialUsersOfNewDesk(creator, desk, subscriptions) {
+export async function notifySpecialUsersOfNewDesk(creator, desk, subscriptions, opts = {}) {
   const url = FRONTEND_URL ? FRONTEND_URL.split(",")[0].trim() : "http://localhost:3000";
+  const what = desk.subject || desk.topic || "";
 
   await sendPushToSubscriptions(subscriptions, {
-    title: `${creator.name} just opened a new desk`,
-    body: `${desk.title} · ${desk.topic}`,
+    title: opts.reused ? `${creator.name} reopened a desk` : `${creator.name} just opened a new desk`,
+    body: what ? `${desk.title} · ${what}` : desk.title,
     url,
     tag: `desk-${desk.id}`,
   });

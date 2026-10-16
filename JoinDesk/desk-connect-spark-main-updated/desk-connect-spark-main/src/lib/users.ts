@@ -14,6 +14,9 @@ export type ProfileResponse = {
   isOwner: boolean;
   iBlockedThem: boolean;
   theyBlockedMe: boolean;
+  // Do I follow them (get notified when they open or reopen a desk)? and how many follow them.
+  iFollow: boolean;
+  followers: number;
 };
 
 export type Joiner = {
@@ -57,6 +60,18 @@ export function markSpecial(userId: string) {
 
 export function unmarkSpecial(userId: string) {
   return api.delete<{ special: boolean }>(`/api/users/${userId}/special`);
+}
+
+export function followUser(userId: string) {
+  return api.post<{ following: boolean }>(`/api/users/${userId}/follow`);
+}
+
+export function unfollowUser(userId: string) {
+  return api.delete<{ following: boolean }>(`/api/users/${userId}/follow`);
+}
+
+export function getMyFollowing() {
+  return api.get<{ following: { id: string; name: string; avatar_url: string | null }[] }>("/api/users/me/following");
 }
 
 export function getMySpecialUsers() {

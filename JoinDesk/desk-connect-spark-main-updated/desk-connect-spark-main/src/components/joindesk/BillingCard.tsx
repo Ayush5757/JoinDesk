@@ -27,6 +27,9 @@ export function BillingCard() {
 
   const { access } = status;
 
+  // While everything is free there is nothing to show (and nothing scary to read).
+  if (access.status === "open") return null;
+
   const pay = async () => {
     setPaying(true);
     try {
@@ -66,20 +69,20 @@ export function BillingCard() {
   } else if (access.status === "trial") {
     icon = <Sparkles className="h-5 w-5" />;
     tone = "bg-info-soft text-info";
-    title = `Free trial until ${formatDate(access.until)}`;
-    detail = "Try every desk free. After the trial, one payment unlocks everything.";
+    title = `Everything is free until ${formatDate(access.until)}`;
+    detail = "Your first days are on us. After that, one subscription unlocks desks and Random chat.";
   } else if (access.status === "free_desks") {
     icon = <Gift className="h-5 w-5" />;
     tone = "bg-special-soft text-special";
     title = `Free access to ${access.freeDeskIds.length} desk${access.freeDeskIds.length === 1 ? "" : "s"}`;
-    detail = "Other Special desks need a subscription.";
+    detail = "Other desks need a subscription.";
   } else {
     icon = <CreditCard className="h-5 w-5" />;
     tone = "bg-destructive/10 text-destructive";
-    title = "No active subscription";
+    title = "Subscribe to keep going";
     detail = status.message?.trim()
-      ? `Special desks need a subscription (₹${status.priceInr}). ${status.message.trim()}`
-      : `Special desks need a subscription (₹${status.priceInr}). All other desks are free.`;
+      ? `A subscription (₹${status.priceInr}) unlocks desks and Random chat. ${status.message.trim()}`
+      : `A subscription (₹${status.priceInr}) unlocks desks and Random chat.`;
   }
 
   const showPay = status.enabled && status.configured && access.status !== "free_all";

@@ -2,7 +2,22 @@ import { useState } from "react";
 import { Info, Link as LinkIcon } from "lucide-react";
 import { Modal } from "./Modal";
 
-export type NewDeskInput = { title: string; description: string; meetLink: string };
+export type NewDeskInput = { title: string; subject: string; description: string; meetLink: string };
+
+// One-tap ideas for the subject; people can still type anything.
+const SUBJECT_IDEAS = [
+  "Exam Preparation",
+  "Physics",
+  "Chemistry",
+  "Biology",
+  "Mathematics",
+  "Computer Science",
+  "Medicine",
+  "Commerce",
+  "Law",
+  "Languages",
+  "Coding",
+];
 
 export function CreateDeskModal({
   open,
@@ -14,12 +29,14 @@ export function CreateDeskModal({
   onCreate: (input: NewDeskInput) => void;
 }) {
   const [title, setTitle] = useState("");
+  const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
   const [meetLink, setMeetLink] = useState("");
   const [error, setError] = useState("");
 
   const reset = () => {
     setTitle("");
+    setSubject("");
     setDescription("");
     setMeetLink("");
     setError("");
@@ -32,9 +49,10 @@ export function CreateDeskModal({
 
   const submit = () => {
     if (!title.trim()) return setError("Please add a topic title for your desk.");
+    if (!subject.trim()) return setError("Tell us the subject or field (e.g. Biology, Physics, Computer Science).");
     if (!/^https?:\/\/.+\..+/i.test(meetLink.trim()))
       return setError("Enter a valid meeting link, e.g. https://meet.google.com/abc-defg-hij or https://zoom.us/j/123456789");
-    onCreate({ title: title.trim(), description: description.trim(), meetLink: meetLink.trim() });
+    onCreate({ title: title.trim(), subject: subject.trim(), description: description.trim(), meetLink: meetLink.trim() });
     reset();
   };
 
@@ -58,6 +76,34 @@ export function CreateDeskModal({
             placeholder="e.g., Anatomy & Pharmacology or Reactjs Coding"
             className={"mt-1.5 " + field}
           />
+        </div>
+        <div>
+          <label className="text-xs font-semibold text-muted-foreground">Subject / Field *</label>
+          <input
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            maxLength={60}
+            placeholder="e.g., Biology, Physics, Computer Science"
+            className={"mt-1.5 " + field}
+          />
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {SUBJECT_IDEAS.map((idea) => (
+              <button
+                key={idea}
+                type="button"
+                onClick={() => setSubject(idea)}
+                className={
+                  "rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors " +
+                  (subject.trim().toLowerCase() === idea.toLowerCase()
+                    ? "border-transparent bg-foreground text-background"
+                    : "border-border bg-card hover:bg-muted")
+                }
+              >
+                {idea}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1.5 text-[11px] text-muted-foreground">People can find your desk by searching this.</p>
         </div>
         <div>
           <label className="text-xs font-semibold text-muted-foreground">Description</label>
@@ -90,8 +136,8 @@ export function CreateDeskModal({
       <div className="mt-5 flex gap-3 rounded-2xl bg-info-soft p-4">
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-info" />
         <p className="text-xs leading-relaxed text-info">
-          Note: This desk stays active for 15 days to keep the platform fresh and clutter-free.
-          Make sure your meeting link is active!
+          This desk stays active for 24 hours, then it leaves the list. You can reuse it from your profile for another
+          24 hours any time. Make sure your meeting link is active!
         </p>
       </div>
 

@@ -6,8 +6,6 @@ import { Modal } from "./Modal";
 import {
   blockUser,
   unblockUser,
-  markSpecial,
-  unmarkSpecial,
   getDeskJoiners,
   type Joiner,
 } from "@/lib/users";
@@ -74,28 +72,6 @@ export function JoinersModal({
     }
   };
 
-  const toggleSpecial = async (user: Joiner) => {
-    setBusyId(user.id);
-    try {
-      if (user.isSpecial) {
-        await unmarkSpecial(user.id);
-        toast.success(`Removed ${user.name} from Special`);
-      } else {
-        await markSpecial(user.id);
-        toast.success(
-          `${user.name} marked Special — they'll get a notification when you open a new desk.`,
-        );
-      }
-      setJoiners((prev) =>
-        prev.map((j) => (j.id === user.id ? { ...j, isSpecial: !j.isSpecial } : j)),
-      );
-    } catch {
-      toast.error("That didn't go through. Try again.");
-    } finally {
-      setBusyId(null);
-    }
-  };
-
   if (!open) return null;
 
   return (
@@ -142,24 +118,19 @@ export function JoinersModal({
               >
                 <p className="truncate text-sm font-semibold">
                   {j.name}
-                  {j.isSpecial && <Sparkles className="ml-1.5 inline h-3.5 w-3.5 text-amber-500" />}
+                  
                 </p>
                 <p className="truncate text-xs text-muted-foreground">{j.email}</p>
               </Link>
               <div className="flex shrink-0 items-center gap-1.5">
-                <button
-                  onClick={() => toggleSpecial(j)}
-                  disabled={busyId === j.id}
-                  title={j.isSpecial ? "Remove from Special" : "Mark as Special"}
-                  className={
-                    "grid h-8 w-8 place-items-center rounded-full border transition-colors disabled:opacity-50 " +
-                    (j.isSpecial
-                      ? "border-amber-300 bg-amber-50 text-amber-600"
-                      : "border-border bg-card text-muted-foreground hover:bg-muted")
-                  }
-                >
-                  <Sparkles className="h-4 w-4" />
-                </button>
+                {j.isSpecial && (
+                  <span
+                    title="They follow you and get a notification when you open a desk"
+                    className="inline-flex h-8 items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2.5 text-[11px] font-semibold text-amber-700"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" /> Follows you
+                  </span>
+                )}
                 <button
                   onClick={() => toggleBlock(j)}
                   disabled={busyId === j.id}

@@ -94,13 +94,24 @@ export async function getPaymentSettings(req, res) {
   }
 }
 
-/** PATCH /api/admin/payment-settings  Body: { enabled, amountInr, message } */
+/** PATCH /api/admin/payment-settings  Body: { paid, trialDays, features: { normalDesks, specialDesks, randomChat }, freeUntil, amountInr, message } */
 export async function updatePaymentSettings(req, res) {
   try {
+    const body = req.body || {};
+    if (body.freeUntil && !DATE_RE.test(body.freeUntil)) {
+      return res.status(400).json({ error: "Pick a valid 'free until' date" });
+    }
+    if (body.trialDays !== undefined && !(Number.isInteger(Number(body.trialDays)) && body.trialDays >= 0 && body.trialDays <= 365)) {
+      return res.status(400).json({ error: "Free days must be a whole number between 0 and 365" });
+    }
     const saved = await savePaymentSettings({
-      enabled: req.body?.enabled,
-      amountInr: req.body?.amountInr,
-      message: req.body?.message,
+      paid: body.paid,
+      trialDays: body.trialDays,
+      enabled: body.enabled,
+      features: body.features,
+      freeUntil: body.freeUntil === "" ? null : body.freeUntil,
+      amountInr: body.amountInr,
+      message: body.message,
     });
     return res.status(200).json(saved);
   } catch (err) {

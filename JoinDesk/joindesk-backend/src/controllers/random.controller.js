@@ -1,6 +1,6 @@
 import { supabaseAdmin } from "../config/supabase.js";
 import { getRandomConfig } from "../config/random.js";
-import { loadAccessContext, evaluateRandomAccess, paymentInfo } from "../services/access.js";
+import { loadAccessContext, evaluateRandomAccess, isFeaturePaid, paymentInfo } from "../services/access.js";
 
 // A waiting person polls every ~5s. If we haven't heard from them for this
 // long they left, so nobody should be matched with them.
@@ -105,7 +105,7 @@ export async function getConfig(req, res) {
     const access = evaluateRandomAccess(ctx);
     return res.status(200).json({
       enabled: random.enabled,
-      paid: random.paid,
+      paid: isFeaturePaid(ctx?.payment, "randomChat"),
       allowed: access.allowed,
       iceServers: random.iceServers,
       payment: access.allowed ? null : paymentInfo(undefined, ctx?.payment, access),

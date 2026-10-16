@@ -10,18 +10,20 @@ import {
   Volume2,
   VolumeX,
   SkipForward,
-  Pin,
-  PinOff,
   Search,
   Video,
   X,
   Sparkles,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { Navbar } from "@/components/joindesk/Navbar";
 import { BlockedScreen } from "@/components/joindesk/BlockedScreen";
 import { JoinDeskModal } from "@/components/joindesk/JoinDeskModal";
 import { loginWithGoogle, logout, restoreSession, BlockedError, type AppUser } from "@/lib/auth";
 import { searchDesksFull } from "@/lib/desks";
+import { SceneBackground } from "@/components/pomodoro/SceneBackground";
+import { getScenes, sceneThumb, type Scene } from "@/lib/pomodoro";
 import type { Desk } from "@/lib/joindesk";
 
 export const Route = createFileRoute("/pomodoro")({
@@ -434,6 +436,14 @@ function useAmbientMusic() {
     if (playing) startPreset(getMusicPreset(nextIndex));
   };
 
+  // A scene can ask for the music that suits it (waves for the beach, rain for the forest...).
+  const selectPreset = (id: string) => {
+    const index = MUSIC_PRESETS.findIndex((p) => p.id === id);
+    if (index < 0) return;
+    setPresetIndex(index);
+    if (playing) startPreset(getMusicPreset(index));
+  };
+
   // Auto-change preset every 15 min while playing, so it's never on a loop
   // for too long — resets whenever you switch presets manually too.
   useEffect(() => {
@@ -451,6 +461,7 @@ function useAmbientMusic() {
     pause,
     next,
     label: getMusicPreset(presetIndex).label,
+    selectPreset,
     volume,
     setVolume: setVolumeState,
     muted,
@@ -591,6 +602,9 @@ function formatTime(totalSeconds: number) {
 // =========================================================================
 // The page
 // =========================================================================
+const SCENE_KEY = "joindesk_focus_scene";
+const STILL_KEY = "joindesk_focus_still";
+
 function PomodoroPage() {
   const [user, setUser] = useState<AppUser | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
@@ -605,10 +619,81 @@ function PomodoroPage() {
       .finally(() => setCheckingSession(false));
   }, []);
 
+  // A photo is only the backup picture (no scene, or still-image mode).
   const wallpaper = useStudyWallpaper();
   const music = useAmbientMusic();
   const timer = usePomodoroTimer();
   const [joinPanelOpen, setJoinPanelOpen] = useState(false);
+
+  // ---------------- background scenes ----------------
+  const [scenes, setScenes] = useState<Scene[]>([]);
+  const [sceneIndex, setSceneIndex] = useState(0);
+  const [still, setStill] = useState(false); // picture only, no video (saves data)
+  const [videoSound, setVideoSound] = useState(false);
+  const [hud, setHud] = useState(true); // the small panels; hide them to see the whole scene
+  const [tabHidden, setTabHidden] = useState(false);
+  const failedCount = useRef(0);
+
+  useEffect(() => {
+    const conn = (navigator as unknown as { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+    const saved = localStorage.getItem(STILL_KEY);
+    setStill(
+      saved !== null ? saved === "1" : Boolean(conn?.saveData) || conn?.effectiveType === "2g" || conn?.effectiveType === "slow-2g",
+    );
+    getScenes().then((list) => {
+      setScenes(list);
+      const i = list.findIndex((sc) => sc.id === localStorage.getItem(SCENE_KEY));
+      setSceneIndex(i >= 0 ? i : 0);
+    });
+  }, []);
+
+  useEffect(() => {
+    const onVis = () => setTabHidden(document.visibilityState === "hidden");
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) return;
+      if (e.key === "h" || e.key === "H") setHud((v) => !v);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const scene = scenes[sceneIndex] ?? null;
+
+  // each scene brings the music that suits it
+  useEffect(() => {
+    if (scene?.music) music.selectPreset(scene.music);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scene?.id]);
+
+  const chooseScene = (i: number) => {
+    failedCount.current = 0;
+    setSceneIndex(i);
+    const sc = scenes[i];
+    if (sc) localStorage.setItem(SCENE_KEY, sc.id);
+  };
+
+  const onSceneFailed = () => {
+    failedCount.current += 1;
+    if (failedCount.current >= scenes.length) {
+      setStill(true);
+      toast("Couldn't play the videos right now, so we're showing a picture.");
+      return;
+    }
+    toast("That video isn't available. Trying another.");
+    setSceneIndex((i) => (i + 1) % scenes.length);
+  };
+
+  const toggleStill = () => {
+    const next = !still;
+    setStill(next);
+    localStorage.setItem(STILL_KEY, next ? "1" : "0");
+  };
 
   const handleLogin = async () => {
     try {
@@ -625,16 +710,21 @@ function PomodoroPage() {
   if (checkingSession) return <div className="min-h-screen bg-background" />;
   if (isBlocked) return <BlockedScreen />;
 
+  const chip =
+    "inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[11px] font-semibold transition-colors hover:bg-white/20";
+  const round =
+    "grid h-8 w-8 place-items-center rounded-full border border-white/20 bg-white/10 transition-colors hover:bg-white/20";
+
   return (
-    <div className="relative min-h-screen text-white">
-      {/* Full-page background wallpaper, with a dark overlay so text stays readable no matter the photo. */}
-      <div
-        className="fixed inset-0 -z-10 bg-cover bg-center transition-[background-image] duration-700"
-        style={{
-          backgroundImage: wallpaper.imageUrl ? `url(${wallpaper.imageUrl})` : FALLBACK_GRADIENT,
-        }}
+    <div className="relative flex h-screen min-h-[520px] flex-col overflow-hidden text-white">
+      <SceneBackground
+        scene={scene}
+        still={still}
+        soundOn={videoSound}
+        paused={tabHidden}
+        fallbackImage={wallpaper.imageUrl}
+        onFailed={onSceneFailed}
       />
-      <div className="fixed inset-0 -z-10 bg-black/55" />
 
       <Navbar
         isLoggedIn={Boolean(user)}
@@ -648,170 +738,130 @@ function PomodoroPage() {
         hideCreate
       />
 
-      <main className="mx-auto flex max-w-3xl flex-col items-center px-4 py-10 sm:py-16">
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Focus Timer</h1>
-        <p className="mt-1.5 text-center text-sm text-white/70">
-          A quiet space to study. Keep this tab open — join a call in a new tab and this timer
-          keeps running right here.
-        </p>
-
-        {/* ------------------------------- Timer card ------------------------------- */}
-        <div className="mt-8 w-full rounded-3xl border border-white/15 bg-white/10 p-6 text-center shadow-2xl backdrop-blur-xl sm:p-10">
-          <div className="inline-flex rounded-full border border-white/20 bg-black/20 p-1 text-xs font-semibold">
-            {(Object.keys(TIMER_PRESETS) as PresetKey[]).map((key) => (
-              <button
-                key={key}
-                onClick={() => timer.setPresetKey(key)}
-                className={
-                  "rounded-full px-3 py-1.5 transition-colors " +
-                  (timer.presetKey === key ? "bg-white text-slate-900" : "text-white/70 hover:text-white")
-                }
-              >
-                {TIMER_PRESETS[key].label}
-              </button>
-            ))}
-          </div>
-
-          <p className="mt-6 text-sm font-semibold uppercase tracking-widest text-white/70">
-            {phaseLabel(timer.phase)}
-          </p>
-          <p className="mt-2 font-mono text-6xl font-bold tabular-nums sm:text-7xl">
-            {formatTime(timer.secondsLeft)}
-          </p>
-
-          <div className="mt-3 flex items-center justify-center gap-1.5">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <span
-                key={i}
-                className={
-                  "h-1.5 w-6 rounded-full transition-colors " +
-                  (i < timer.completedSessions % 4 || (timer.completedSessions > 0 && timer.completedSessions % 4 === 0 && i < 4)
-                    ? "bg-white"
-                    : "bg-white/25")
-                }
-              />
-            ))}
-          </div>
-          <p className="mt-1 text-[11px] text-white/60">
-            {timer.completedSessions} study session{timer.completedSessions === 1 ? "" : "s"} completed
-          </p>
-
-          <div className="mt-7 flex items-center justify-center gap-3">
-            {timer.running ? (
-              <button
-                onClick={timer.pause}
-                className="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-bold text-slate-900 shadow-lg transition-transform hover:scale-105"
-              >
-                <Pause className="h-4 w-4" /> Pause
-              </button>
-            ) : (
-              <button
-                onClick={timer.start}
-                className="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-bold text-slate-900 shadow-lg transition-transform hover:scale-105"
-              >
-                <Play className="h-4 w-4" /> Start
-              </button>
-            )}
+      {/* Everything is small and sits at the edges, so the scene stays clear. */}
+      <div className="relative flex-1">
+        {/* top right: show/hide panels + join a desk */}
+        <div className="absolute right-3 top-3 flex items-center gap-2">
+          <button
+            onClick={() => setHud((v) => !v)}
+            title={hud ? "Hide panels (H)" : "Show panels (H)"}
+            className={round + " bg-black/30 backdrop-blur-md"}
+          >
+            {hud ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+          {hud && (
             <button
-              onClick={timer.resetTimer}
-              title="Reset"
-              className="grid h-11 w-11 place-items-center rounded-full border border-white/25 bg-white/10 transition-colors hover:bg-white/20"
+              onClick={() => setJoinPanelOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-2 text-xs font-bold text-slate-900 shadow-lg transition-transform hover:scale-105"
             >
-              <RotateCcw className="h-4 w-4" />
+              <Video className="h-3.5 w-3.5" /> Join a desk
             </button>
-          </div>
+          )}
         </div>
 
-        {/* ------------------------------- Wallpaper + Music controls ------------------------------- */}
-        <div className="mt-5 grid w-full gap-3 sm:grid-cols-2">
-          <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <ImageIcon className="h-4 w-4" /> Study Wallpaper
+        {hud && (
+          <div className="absolute inset-x-3 bottom-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            {/* ------------------------------- timer ------------------------------- */}
+            <div className="w-full rounded-2xl border border-white/15 bg-black/35 p-3 shadow-xl backdrop-blur-md sm:w-56">
+              <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-widest text-white/70">
+                <span>{phaseLabel(timer.phase)}</span>
+                <span>
+                  {timer.completedSessions} done
+                </span>
+              </div>
+              <p className="mt-0.5 font-mono text-3xl font-semibold tabular-nums">{formatTime(timer.secondsLeft)}</p>
+              <div className="mt-2 flex items-center gap-1.5">
+                {timer.running ? (
+                  <button onClick={timer.pause} title="Pause" className={round + " bg-white text-slate-900 hover:bg-white/90"}>
+                    <Pause className="h-3.5 w-3.5" />
+                  </button>
+                ) : (
+                  <button onClick={timer.start} title="Start" className={round + " bg-white text-slate-900 hover:bg-white/90"}>
+                    <Play className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                <button onClick={timer.resetTimer} title="Reset" className={round}>
+                  <RotateCcw className="h-3.5 w-3.5" />
+                </button>
+                <div className="ml-auto inline-flex rounded-full border border-white/20 bg-black/20 p-0.5 text-[10px] font-semibold">
+                  {(Object.keys(TIMER_PRESETS) as PresetKey[]).map((key) => (
+                    <button
+                      key={key}
+                      onClick={() => timer.setPresetKey(key)}
+                      className={
+                        "rounded-full px-2 py-0.5 transition-colors " +
+                        (timer.presetKey === key ? "bg-white text-slate-900" : "text-white/70 hover:text-white")
+                      }
+                    >
+                      {TIMER_PRESETS[key].label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
-            <p className="mt-1 text-xs text-white/65">
-              {wallpaper.isPermanent
-                ? "This wallpaper is set as yours."
-                : "Changes automatically every 15 minutes."}
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {!wallpaper.isPermanent && (
-                <button
-                  onClick={wallpaper.skipToNext}
-                  disabled={wallpaper.loading}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-white/20 disabled:opacity-50"
-                >
-                  <SkipForward className="h-3.5 w-3.5" /> New wallpaper
-                </button>
+
+            {/* ------------------------------- scene + music ------------------------------- */}
+            <div className="w-full rounded-2xl border border-white/15 bg-black/35 p-3 shadow-xl backdrop-blur-md sm:w-72">
+              {scenes.length > 0 && (
+                <div className="flex gap-1.5 overflow-x-auto pb-1">
+                  {scenes.map((sc, i) => {
+                    const thumb = sceneThumb(sc);
+                    return (
+                      <button
+                        key={sc.id}
+                        onClick={() => chooseScene(i)}
+                        title={`${sc.title} · ${sc.category}`}
+                        className={
+                          "relative h-9 w-14 shrink-0 overflow-hidden rounded-lg bg-slate-700 bg-cover bg-center ring-2 transition-all " +
+                          (i === sceneIndex ? "ring-white" : "ring-transparent opacity-70 hover:opacity-100")
+                        }
+                        style={thumb ? { backgroundImage: `url(${thumb})` } : undefined}
+                      >
+                        {!thumb && <span className="absolute inset-0 grid place-items-center text-[9px] font-bold">{sc.category}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
               )}
-              {wallpaper.isPermanent ? (
-                <button
-                  onClick={wallpaper.removePermanent}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-white/20"
-                >
-                  <PinOff className="h-3.5 w-3.5" /> Remove my wallpaper
+              <p className="mt-1.5 truncate text-[11px] font-medium text-white/80">
+                {scene ? `${scene.title} · ${scene.category}` : "Loading scenes…"}
+              </p>
+
+              <div className="mt-2 flex items-center gap-1.5">
+                <button onClick={music.playing ? music.pause : music.play} title={music.playing ? "Pause music" : "Play music"} className={round}>
+                  {music.playing ? <Pause className="h-3.5 w-3.5" /> : <Music2 className="h-3.5 w-3.5" />}
                 </button>
-              ) : (
-                <button
-                  onClick={wallpaper.setPermanent}
-                  disabled={!wallpaper.imageUrl}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-white/20 disabled:opacity-50"
-                >
-                  <Pin className="h-3.5 w-3.5" /> Set as my wallpaper
+                <button onClick={music.next} title="Next music" className={round}>
+                  <SkipForward className="h-3.5 w-3.5" />
                 </button>
-              )}
+                <button onClick={() => music.setMuted(!music.muted)} title={music.muted ? "Unmute" : "Mute"} className={round}>
+                  {music.muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+                </button>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={music.volume}
+                  onChange={(e) => music.setVolume(parseFloat(e.target.value))}
+                  className="h-1 min-w-0 flex-1 accent-white"
+                  aria-label="Music volume"
+                />
+              </div>
+              <p className="mt-1 truncate text-[10px] text-white/60">{music.label} · no lyrics</p>
+
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <button onClick={() => setVideoSound((v) => !v)} className={chip} title="Hear the sound of the video itself">
+                  {videoSound ? <Volume2 className="h-3 w-3" /> : <VolumeX className="h-3 w-3" />} Video sound
+                </button>
+                <button onClick={toggleStill} className={chip} title="Show a picture instead of the moving video, to save data">
+                  <ImageIcon className="h-3 w-3" /> {still ? "Still image" : "Video"}
+                </button>
+              </div>
             </div>
           </div>
-
-          <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <Music2 className="h-4 w-4" /> Study Music
-            </div>
-            <p className="mt-1 text-xs text-white/65">{music.label} · smooth, no lyrics</p>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <button
-                onClick={music.playing ? music.pause : music.play}
-                className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-white/20"
-              >
-                {music.playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-                {music.playing ? "Pause" : "Play"}
-              </button>
-              <button
-                onClick={music.next}
-                className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-white/20"
-              >
-                <SkipForward className="h-3.5 w-3.5" /> Next
-              </button>
-              <button
-                onClick={() => music.setMuted(!music.muted)}
-                title={music.muted ? "Unmute" : "Mute"}
-                className="grid h-8 w-8 place-items-center rounded-full border border-white/25 bg-white/10 transition-colors hover:bg-white/20"
-              >
-                {music.muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
-              </button>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.05}
-                value={music.volume}
-                onChange={(e) => music.setVolume(parseFloat(e.target.value))}
-                className="h-1.5 w-24 accent-white"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* ------------------------------- Join a desk ------------------------------- */}
-        <button
-          onClick={() => setJoinPanelOpen(true)}
-          className="mt-6 inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-bold text-slate-900 shadow-lg transition-transform hover:scale-105"
-        >
-          <Video className="h-4 w-4" /> Join a Desk
-        </button>
-        <p className="mt-2 max-w-sm text-center text-[11px] text-white/60">
-          Opens the call in a new tab — this timer, wallpaper, and music keep running here.
-        </p>
-      </main>
+        )}
+      </div>
 
       {joinPanelOpen && <JoinDeskPanel onClose={() => setJoinPanelOpen(false)} />}
     </div>

@@ -15,6 +15,7 @@ type Props = {
   onEdit?: ((d: Desk) => void) | undefined;
   onDelete?: ((d: Desk) => void) | undefined;
   onToggleHide?: ((d: Desk) => void) | undefined;
+  onReuse?: ((d: Desk) => void) | undefined;
   emptyState?: React.ReactNode;
 };
 
@@ -35,6 +36,7 @@ export function DeskGrid({
   onEdit,
   onDelete,
   onToggleHide,
+  onReuse,
   emptyState,
 }: Props) {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -87,6 +89,7 @@ export function DeskGrid({
             onEdit={onEdit}
             onDelete={onDelete}
             onToggleHide={onToggleHide}
+            onReuse={onReuse}
           />
         ))}
       </div>

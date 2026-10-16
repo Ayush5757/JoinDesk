@@ -21,7 +21,7 @@ export function getBillingConfig() {
 
   return {
     paywallEnabled: toBool(e.PAYWALL_ENABLED, false),
-    trialDays: Math.max(0, toNum(e.TRIAL_DAYS, 0)),
+    trialDays: Math.max(0, toNum(e.TRIAL_DAYS, 3)),
     priceInr,
     amountPaise: Math.round(priceInr * 100),
     days: Math.max(1, Math.round(toNum(e.SUBSCRIPTION_DAYS, 30))),

@@ -493,3 +493,21 @@ create table if not exists public.random_reports (
 );
 create index if not exists random_reports_status_idx on public.random_reports (status, created_at desc);
 create index if not exists random_reports_reported_idx on public.random_reports (reported, created_at desc);
+
+
+-- =========================
+-- Feature update: 24-hour desks, subject, reuse, paid-feature controls
+-- =========================
+-- Safe to re-run. Run this block once in the Supabase SQL Editor.
+
+-- The "field" a desk is about (Biology, Physics, Computer Science...). Required for new desks,
+-- searched together with the title and description.
+alter table public.desks add column if not exists subject text;
+
+-- When the desk was last (re)opened. A normal desk is shown for 24 hours after this moment;
+-- its creator can reuse it from their profile, which sets this to now. New desks start now.
+alter table public.desks add column if not exists active_at timestamptz;
+update public.desks set active_at = created_at where active_at is null;
+alter table public.desks alter column active_at set default now();
+alter table public.desks alter column active_at set not null;
+create index if not exists desks_active_at_idx on public.desks (active_at desc);

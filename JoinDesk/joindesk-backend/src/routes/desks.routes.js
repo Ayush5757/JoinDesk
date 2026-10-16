@@ -9,6 +9,7 @@ import {
   getDeskJoiners,
   updateDesk,
   deleteDesk,
+  reuseDesk,
 } from "../controllers/desks.controller.js";
 
 const router = Router();
@@ -22,6 +23,7 @@ router.get("/", optionalAuth, getDesks); // public, but personalized (block filt
 router.post("/", requireAuth, createDesk); // requires login
 
 router.post("/:id/join", requireAuth, joinDesk);
+router.post("/:id/reuse", requireAuth, reuseDesk); // creator reopens a desk for another 24h
 router.get("/:id/joiners", requireAuth, getDeskJoiners);
 router.patch("/:id", requireAuth, updateDesk); // creator (or admin) edits topic/description/link
 router.delete("/:id", requireAuth, deleteDesk); // creator (or admin) deletes their desk

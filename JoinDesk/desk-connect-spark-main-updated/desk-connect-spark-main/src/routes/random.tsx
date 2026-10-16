@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import {
   ArrowLeft,
   CreditCard,
+  Volume2,
   Flag,
   Loader2,
   Mic,
@@ -49,6 +50,51 @@ function mediaErrorText(err: unknown): string {
   return "Couldn't start your camera and microphone.";
 }
 
+/**
+ * 0..1 "how loud is this stream right now", used for the little mic / voice indicators
+ * so people can SEE that their microphone works and that the other person is speaking.
+ */
+function useAudioLevel(stream: MediaStream | null, tick: number): number {
+  const [level, setLevel] = useState(0);
+  useEffect(() => {
+    if (!stream || stream.getAudioTracks().length === 0) {
+      setLevel(0);
+      return;
+    }
+    let raf = 0;
+    let ctx: AudioContext | null = null;
+    let last = 0;
+    try {
+      const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!Ctor) return;
+      ctx = new Ctor();
+      void ctx.resume().catch(() => {});
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      ctx.createMediaStreamSource(stream).connect(analyser);
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      const loop = (t: number) => {
+        raf = requestAnimationFrame(loop);
+        if (t - last < 120) return; // ~8 updates a second is plenty
+        last = t;
+        analyser.getByteFrequencyData(data);
+        let sum = 0;
+        for (const v of data) sum += v;
+        setLevel(Math.min(1, sum / data.length / 60));
+      };
+      raf = requestAnimationFrame(loop);
+    } catch {
+      setLevel(0);
+    }
+    return () => {
+      cancelAnimationFrame(raf);
+      void ctx?.close().catch(() => {});
+    };
+    // `tick` makes this re-run when the remote stream gets its tracks
+  }, [stream, tick]);
+  return level;
+}
+
 function RandomPage() {
   const [user, setUser] = useState<AppUser | null>(null);
   const [phase, setPhase] = useState<Phase>("checking");
@@ -71,6 +117,8 @@ function RandomPage() {
   const localVideo = useRef<HTMLVideoElement | null>(null);
   const remoteVideo = useRef<HTMLVideoElement | null>(null);
   const retries = useRef(0);
+  const [soundBlocked, setSoundBlocked] = useState(false);
+  const [remoteTick, setRemoteTick] = useState(0);
 
   // ---------- who is this, and may they use it? ----------
   const loadConfig = useCallback(async () => {
@@ -124,10 +172,31 @@ function RandomPage() {
     if (localVideo.current && streamRef.current && localVideo.current.srcObject !== streamRef.current) {
       localVideo.current.srcObject = streamRef.current;
     }
-    if (remoteVideo.current && remoteVideo.current.srcObject !== remoteStream.current) {
-      remoteVideo.current.srcObject = remoteStream.current;
+    const rv = remoteVideo.current;
+    if (rv && rv.srcObject !== remoteStream.current) {
+      rv.srcObject = remoteStream.current;
+      if (remoteStream.current) {
+        // Play with sound. If the browser refuses (autoplay rules) show a tap-to-enable button.
+        rv.muted = false;
+        rv.play().then(
+          () => setSoundBlocked(false),
+          () => setSoundBlocked(true),
+        );
+      } else {
+        setSoundBlocked(false);
+      }
     }
   });
+
+  const enableSound = () => {
+    const rv = remoteVideo.current;
+    if (!rv) return;
+    rv.muted = false;
+    void rv.play().then(() => setSoundBlocked(false), () => setSoundBlocked(true));
+  };
+
+  const myLevel = useAudioLevel(phase === "live" && micOn ? streamRef.current : null, 0);
+  const theirLevel = useAudioLevel(call === "connected" ? remoteStream.current : null, remoteTick);
 
   // ---------- one place that handles "you can't search right now" ----------
   const handleSearchError = useCallback(
@@ -160,6 +229,7 @@ function RandomPage() {
       },
       onRemote: (s) => {
         remoteStream.current = s;
+        setRemoteTick((n) => n + 1);
         bump((n) => n + 1);
       },
     });
@@ -173,7 +243,7 @@ function RandomPage() {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: { width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 24, max: 30 }, facingMode: "user" },
-          audio: { echoCancellation: true, noiseSuppression: true },
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
         });
       } catch (err) {
         setProblem(mediaErrorText(err));
@@ -181,6 +251,9 @@ function RandomPage() {
       }
       localStorage.setItem(RULES_KEY, "1");
       streamRef.current = stream;
+      if (stream.getAudioTracks().length === 0) {
+        toast.error("No microphone found, so the other person won't hear you.");
+      }
       setMicOn(true);
       setCamOn(true);
       retries.current = 0;
@@ -448,6 +521,21 @@ function RandomPage() {
           </div>
         )}
 
+        {connected && soundBlocked && (
+          <button
+            onClick={enableSound}
+            className="absolute left-1/2 top-16 z-10 inline-flex -translate-x-1/2 items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-black shadow-lg"
+          >
+            <Volume2 className="h-4 w-4" /> Tap to turn on sound
+          </button>
+        )}
+
+        {connected && !soundBlocked && theirLevel > 0.03 && (
+          <span className="absolute left-4 top-3 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-[11px] font-medium backdrop-blur-md">
+            <Volume2 className="h-3.5 w-3.5" /> Speaking
+          </span>
+        )}
+
         {notice && (
           <p className="absolute left-1/2 top-3 max-w-[90%] -translate-x-1/2 rounded-full bg-white/15 px-4 py-2 text-center text-xs font-medium backdrop-blur-md">
             {notice}
@@ -462,6 +550,13 @@ function RandomPage() {
               <VideoOff className="h-5 w-5 text-white/60" />
             </span>
           )}
+          {/* your mic level: if this moves when you talk, they can hear you */}
+          <span className="absolute inset-x-2 bottom-2 h-1 overflow-hidden rounded-full bg-white/20">
+            <span
+              className={"block h-full rounded-full transition-[width] duration-100 " + (micOn ? "bg-emerald-400" : "bg-red-400")}
+              style={{ width: micOn ? `${Math.round(myLevel * 100)}%` : "100%" }}
+            />
+          </span>
         </div>
 
         {/* controls */}

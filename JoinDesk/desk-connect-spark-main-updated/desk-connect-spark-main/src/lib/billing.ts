@@ -1,7 +1,14 @@
 import { api, ApiError } from "./api";
 
+/** Which parts of the site need a subscription right now. */
+export type PaywallFlags = { normalDesks: boolean; specialDesks: boolean; randomChat: boolean };
+
 export type BillingConfig = {
+  // true when at least one feature needs a subscription right now
   enabled: boolean;
+  paywall?: PaywallFlags;
+  // optional last free day (YYYY-MM-DD) set by the admin
+  freeUntil?: string | null;
   configured: boolean;
   priceInr: number;
   days: number;
@@ -14,6 +21,8 @@ export type AccessSummary = {
   // open = paywall off, free_all = admin gave every desk, paid, trial,
   // free_desks = admin gave only some desks, expired = must pay
   status: "open" | "free_all" | "paid" | "scheduled" | "trial" | "free_desks" | "expired";
+  paywall?: PaywallFlags;
+  freeUntil?: string | null;
   until: string | null;
   freeAll: boolean;
   freeDeskIds: string[];
@@ -45,6 +54,7 @@ export type PaymentRequiredInfo = {
   // A subscription is saved but starts later / the last one already ended.
   nextStartsAt: string | null;
   lastEndedAt: string | null;
+  freeUntil?: string | null;
 };
 
 /** Reads the price info the backend attaches to a 402 response. */
