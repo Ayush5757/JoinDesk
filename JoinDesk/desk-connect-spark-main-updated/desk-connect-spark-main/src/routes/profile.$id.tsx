@@ -1,3 +1,4 @@
+import { PageLoader } from "@/components/joindesk/PageLoader";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -5,7 +6,7 @@ import { Navbar } from "@/components/joindesk/Navbar";
 import { ProfileView } from "@/components/joindesk/ProfileView";
 import { BlockedScreen } from "@/components/joindesk/BlockedScreen";
 import { CreateDeskModal, type NewDeskInput } from "@/components/joindesk/CreateDeskModal";
-import { loginWithGoogle, logout, restoreSession, BlockedError, type AppUser } from "@/lib/auth";
+import { loginWithGoogle, logout, readCachedUser, restoreSession, BlockedError, type AppUser } from "@/lib/auth";
 import { api, ApiError } from "@/lib/api";
 import type { DeskApiRow } from "@/lib/joindesk";
 
@@ -27,6 +28,12 @@ function ProfilePage() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
+    // Back / return visit: show the signed-in screen straight away, then confirm in the background.
+    const cached = readCachedUser();
+    if (cached) {
+      setUser(cached);
+      setCheckingSession(false);
+    }
     restoreSession()
       .then(setUser)
       .catch((err) => {
@@ -68,7 +75,7 @@ function ProfilePage() {
   };
 
   if (checkingSession) {
-    return <div className="min-h-screen bg-background" />;
+    return <PageLoader />;
   }
 
   if (isBlocked) {

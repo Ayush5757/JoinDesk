@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronDown, Eye, EyeOff, LayoutGrid, Maximize2, Minimize2, Video } from "lucide-react";
+import { ChevronDown, Eye, EyeOff, LayoutGrid, Maximize2, Minimize2, Target, Video } from "lucide-react";
 import type { AppUser } from "@/lib/auth";
 
 /**
@@ -15,6 +15,7 @@ export function FocusTopBar({
   user,
   onLogin,
   onJoin,
+  onGoals,
   hud,
   onToggleHud,
   canFullscreen,
@@ -27,6 +28,7 @@ export function FocusTopBar({
   user: AppUser | null;
   onLogin: () => void;
   onJoin: () => void;
+  onGoals: () => void;
   hud: boolean;
   onToggleHud: () => void;
   canFullscreen: boolean;
@@ -70,6 +72,7 @@ export function FocusTopBar({
           </Link>
 
           <p className="ml-3 hidden text-[11px] text-white/60 md:block">
+            <kbd className="rounded bg-white/15 px-1.5 py-0.5 font-sans">G</kbd> goals ·{" "}
             <kbd className="rounded bg-white/15 px-1.5 py-0.5 font-sans">F</kbd> full screen ·{" "}
             <kbd className="rounded bg-white/15 px-1.5 py-0.5 font-sans">H</kbd> hide panels ·{" "}
             <kbd className="rounded bg-white/15 px-1.5 py-0.5 font-sans">Esc</kbd> exit full screen
@@ -78,6 +81,10 @@ export function FocusTopBar({
           <div className="ml-auto flex items-center gap-2">
             <button onClick={onJoin} className={pill + " bg-white text-slate-900 hover:bg-white/90"}>
               <Video className="h-3.5 w-3.5" /> Join a desk
+            </button>
+            <button onClick={onGoals} title="Goals, progress and reports (G)" className={pill}>
+              <Target className="h-4 w-4" />
+              <span className="hidden sm:inline">Goals</span>
             </button>
             <button onClick={onToggleHud} title={hud ? "Hide panels (H)" : "Show panels (H)"} className={pill}>
               {hud ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

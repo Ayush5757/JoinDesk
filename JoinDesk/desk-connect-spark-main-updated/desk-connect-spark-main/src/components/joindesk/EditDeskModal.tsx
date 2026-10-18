@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Info, Link as LinkIcon } from "lucide-react";
 import { Modal } from "./Modal";
-import { topics, type Desk } from "@/lib/joindesk";
+import { type Desk } from "@/lib/joindesk";
 
 export type EditDeskInput = { title: string; subject: string; description: string; meetLink: string; topic: string };
 
@@ -79,7 +79,7 @@ export function EditDeskModal({
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             maxLength={60}
-            placeholder="e.g., Biology, Physics, Computer Science"
+            placeholder="e.g., JEE preparation, Biology, Computer Science"
             className={"mt-1.5 " + field}
           />
         </div>
@@ -91,22 +91,6 @@ export function EditDeskModal({
             rows={3}
             className={"mt-1.5 resize-none " + field}
           />
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-muted-foreground">Category</label>
-          <select
-            value={topic}
-            onChange={(e) => setTopic(e.target.value)}
-            className={"mt-1.5 " + field}
-          >
-            {topics
-              .filter((t) => t !== "All Desks")
-              .map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-          </select>
         </div>
         <div>
           <label className="text-xs font-semibold text-muted-foreground">Meeting Link *</label>

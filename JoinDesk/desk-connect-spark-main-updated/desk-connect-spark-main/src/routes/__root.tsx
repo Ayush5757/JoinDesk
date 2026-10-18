@@ -12,6 +12,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "../components/ui/sonner";
+import { SigningInOverlay } from "../components/joindesk/SigningInOverlay";
 
 function NotFoundComponent() {
   return (
@@ -169,6 +170,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
+      <SigningInOverlay />
       <Toaster />
     </QueryClientProvider>
   );

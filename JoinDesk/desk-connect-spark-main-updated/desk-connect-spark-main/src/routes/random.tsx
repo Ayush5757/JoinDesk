@@ -16,11 +16,12 @@ import {
   VideoOff,
 } from "lucide-react";
 import { toast } from "sonner";
+import { PageLoader } from "@/components/joindesk/PageLoader";
 import { BlockedScreen } from "@/components/joindesk/BlockedScreen";
 import { GoogleIcon } from "@/components/joindesk/GoogleIcon";
 import { Sheet } from "@/components/tracker/Sheet";
 import { ApiError } from "@/lib/api";
-import { loginWithGoogle, restoreSession, BlockedError, type AppUser } from "@/lib/auth";
+import { loginWithGoogle, readCachedUser, restoreSession, BlockedError, type AppUser } from "@/lib/auth";
 import {
   RandomClient,
   randomApi,
@@ -104,6 +105,8 @@ function RandomPage() {
 
   useEffect(() => {
     setAgreed(localStorage.getItem(RULES_KEY) === "1");
+    const cached = readCachedUser();
+    if (cached) setUser(cached);
     restoreSession()
       .then((u) => {
         setUser(u);
@@ -351,7 +354,7 @@ function RandomPage() {
   };
 
   // ================= screens =================
-  if (phase === "checking") return <div className="min-h-screen bg-background" />;
+  if (phase === "checking") return <PageLoader />;
   if (phase === "blocked") return <BlockedScreen />;
 
   if (phase === "login") {

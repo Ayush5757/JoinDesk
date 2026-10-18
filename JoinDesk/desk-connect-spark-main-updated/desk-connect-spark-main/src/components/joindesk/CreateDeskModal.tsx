@@ -1,22 +1,11 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Info, Link as LinkIcon } from "lucide-react";
 import { Modal } from "./Modal";
 
 export type NewDeskInput = { title: string; subject: string; description: string; meetLink: string };
 
-// One-tap ideas for the subject; people can still type anything.
-const SUBJECT_IDEAS = [
-  "Physics",
-  "Chemistry",
-  "Biology",
-  "Mathematics",
-  "Computer Science",
-  "Medicine",
-  "Commerce",
-  "Law",
-  "Languages",
-  "Coding",
-];
+// A few one-tap starting points. People type their own words for anything else.
+const SUBJECT_IDEAS = ["Exam preparation", "Physics", "Chemistry", "Biology", "Maths", "Computer Science"];
 
 export function CreateDeskModal({
   open,
@@ -29,6 +18,7 @@ export function CreateDeskModal({
 }) {
   const [title, setTitle] = useState("");
   const [subject, setSubject] = useState("");
+  const subjectInput = useRef<HTMLInputElement | null>(null);
   const [description, setDescription] = useState("");
   const [meetLink, setMeetLink] = useState("");
   const [error, setError] = useState("");
@@ -49,6 +39,7 @@ export function CreateDeskModal({
   const submit = () => {
     if (!title.trim()) return setError("Please add a topic title for your desk.");
     if (!subject.trim()) return setError("Tell us the subject or field (e.g. Biology, Physics, Computer Science).");
+    if (/^exam preparation:?$/i.test(subject.trim())) return setError('Which exam? For example "Exam preparation: JEE" or just "JEE preparation".');
     if (!/^https?:\/\/.+\..+/i.test(meetLink.trim()))
       return setError("Enter a valid meeting link, e.g. https://meet.google.com/abc-defg-hij or https://zoom.us/j/123456789");
     onCreate({ title: title.trim(), subject: subject.trim(), description: description.trim(), meetLink: meetLink.trim() });
@@ -79,10 +70,11 @@ export function CreateDeskModal({
         <div>
           <label className="text-xs font-semibold text-muted-foreground">Subject / Field *</label>
           <input
+            ref={subjectInput}
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             maxLength={60}
-            placeholder="e.g., Biology, Physics, Computer Science"
+            placeholder="e.g., JEE preparation, Biology, Computer Science"
             className={"mt-1.5 " + field}
           />
           <div className="mt-2 flex flex-wrap gap-1.5">
@@ -90,10 +82,13 @@ export function CreateDeskModal({
               <button
                 key={idea}
                 type="button"
-                onClick={() => setSubject(idea)}
+                onClick={() => {
+                  setSubject(idea === "Exam preparation" ? "Exam preparation: " : idea);
+                  subjectInput.current?.focus();
+                }}
                 className={
                   "rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors " +
-                  (subject.trim().toLowerCase() === idea.toLowerCase()
+                  (subject.trim().toLowerCase().replace(/:$/, "") === idea.toLowerCase()
                     ? "border-transparent bg-foreground text-background"
                     : "border-border bg-card hover:bg-muted")
                 }
@@ -102,7 +97,10 @@ export function CreateDeskModal({
               </button>
             ))}
           </div>
-          <p className="mt-1.5 text-[11px] text-muted-foreground">People can find your desk by searching this.</p>
+          <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+            Tell us in a few words what you're studying or preparing for. Examples: "JEE preparation", "NEET Biology",
+            "UPSC", "Class 12 Physics", "Computer Science", "Spoken English". People find your desk by searching this.
+          </p>
         </div>
         <div>
           <label className="text-xs font-semibold text-muted-foreground">Description</label>

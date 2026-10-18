@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { Navbar } from "@/components/joindesk/Navbar";
+import { PageLoader } from "@/components/joindesk/PageLoader";
 import { BlockedScreen } from "@/components/joindesk/BlockedScreen";
 import { AdminDeskModal, type AdminDeskFormValues } from "@/components/joindesk/AdminDeskModal";
 import { AdminJoinersModal } from "@/components/joindesk/AdminJoinersModal";
@@ -42,7 +43,7 @@ import { AdminRandomTab } from "@/components/joindesk/AdminRandomTab";
 import { AdminPomodoroTab } from "@/components/joindesk/AdminPomodoroTab";
 import { AdminUserDetailModal } from "@/components/joindesk/AdminUserDetailModal";
 import { AccessBadge, fmtDay, saveBlob, timeAgo } from "@/components/joindesk/adminShared";
-import { loginWithGoogle, logout, restoreSession, BlockedError, type AppUser } from "@/lib/auth";
+import { loginWithGoogle, logout, readCachedUser, restoreSession, BlockedError, type AppUser } from "@/lib/auth";
 import { isAdminUnlocked, unlockAdmin, lockAdmin } from "@/lib/adminAuth";
 import { getAnnouncement, adminSetAnnouncement } from "@/lib/settings";
 import {
@@ -78,6 +79,12 @@ function AdminPage() {
   const [isBlocked, setIsBlocked] = useState(false);
 
   useEffect(() => {
+    // Back / return visit: show the signed-in screen straight away, then confirm in the background.
+    const cached = readCachedUser();
+    if (cached) {
+      setUser(cached);
+      setCheckingSession(false);
+    }
     restoreSession()
       .then(setUser)
       .catch((err) => {
@@ -99,7 +106,7 @@ function AdminPage() {
     setUser(null);
   };
 
-  if (checkingSession) return <div className="min-h-screen bg-background" />;
+  if (checkingSession) return <PageLoader />;
   if (isBlocked) return <BlockedScreen />;
 
   return (

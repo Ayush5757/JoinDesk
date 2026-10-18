@@ -36,23 +36,88 @@ function loadGoogleScript(): Promise<void> {
   if (scriptLoadPromise) return scriptLoadPromise;
 
   scriptLoadPromise = new Promise((resolve, reject) => {
+    const fail = () => {
+      scriptLoadPromise = null; // allow a retry next time
+      reject(new Error("Couldn't load Google sign-in. Check your internet and try again."));
+    };
+    const timeout = setTimeout(fail, 15000);
+    const done = () => {
+      clearTimeout(timeout);
+      resolve();
+    };
     const existing = document.querySelector(`script[src="${GSI_SCRIPT_SRC}"]`);
     if (existing) {
-      existing.addEventListener("load", () => resolve());
-      existing.addEventListener("error", () => reject(new Error("Failed to load Google script")));
+      existing.addEventListener("load", done);
+      existing.addEventListener("error", fail);
       return;
     }
     const script = document.createElement("script");
     script.src = GSI_SCRIPT_SRC;
     script.async = true;
     script.defer = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Failed to load Google script"));
+    script.onload = done;
+    script.onerror = fail;
     document.head.appendChild(script);
   });
 
   return scriptLoadPromise;
 }
+
+/**
+ * Downloads Google's sign-in script in the background as soon as the app opens. If it were only
+ * fetched when the button is pressed, the browser could treat the pop-up as "not caused by a click"
+ * and block it, which is why people sometimes had to press Sign in twice.
+ */
+export function preloadGoogleSignIn() {
+  if (typeof window === "undefined" || !GOOGLE_CLIENT_ID) return;
+  void loadGoogleScript().catch(() => {});
+}
+
+// ---------------------------------------------------------------------------
+// What the app remembers about you between pages
+// ---------------------------------------------------------------------------
+const USER_KEY = "joindesk_user";
+
+/**
+ * The last signed-in person, kept on this device. Pages use it to show the right screen at once when you
+ * come back to them (for example with the Back button), instead of flashing the signed-out screen
+ * while the session is being checked again in the background.
+ */
+export function readCachedUser(): AppUser | null {
+  try {
+    if (!localStorage.getItem(AUTH_TOKEN_KEY)) return null;
+    const raw = localStorage.getItem(USER_KEY);
+    return raw ? (JSON.parse(raw) as AppUser) : null;
+  } catch {
+    return null;
+  }
+}
+
+function cacheUser(user: AppUser | null) {
+  try {
+    if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
+    else localStorage.removeItem(USER_KEY);
+  } catch {
+    /* storage can be full or blocked: not a problem */
+  }
+}
+
+// ---------------------------------------------------------------------------
+// "Signing you in..." state, so the screen never looks stuck
+// ---------------------------------------------------------------------------
+let signingIn = false;
+const busyListeners = new Set<() => void>();
+function setSigningIn(value: boolean) {
+  signingIn = value;
+  busyListeners.forEach((fn) => fn());
+}
+export function subscribeSigningIn(fn: () => void) {
+  busyListeners.add(fn);
+  return () => {
+    busyListeners.delete(fn);
+  };
+}
+export const getSigningIn = () => signingIn;
 
 /**
  * "Continue with Google": opens Google's real account-picker popup, then
@@ -72,12 +137,20 @@ export async function loginWithGoogle(): Promise<AppUser> {
       return;
     }
 
+    let finished = false;
+    const finish = (fn: () => void) => {
+      if (finished) return;
+      finished = true;
+      setSigningIn(false);
+      fn();
+    };
+
     const client = window.google.accounts.oauth2.initTokenClient({
       client_id: GOOGLE_CLIENT_ID,
       scope: "openid email profile",
       callback: async (response) => {
         if (response.error || !response.access_token) {
-          reject(new Error(response.error || "Google sign-in was cancelled."));
+          finish(() => reject(new Error(response.error ? "Google sign-in didn't complete. Try again." : "Google sign-in was cancelled.")));
           return;
         }
         try {
@@ -86,19 +159,34 @@ export async function loginWithGoogle(): Promise<AppUser> {
             { access_token: response.access_token },
           );
           localStorage.setItem(AUTH_TOKEN_KEY, token);
-          resolve(user);
+          cacheUser(user);
+          finish(() => resolve(user));
         } catch (err) {
-          reject(isBlockedApiError(err) ? new BlockedError() : err);
+          finish(() => reject(isBlockedApiError(err) ? new BlockedError() : err));
         }
+      },
+      // the person closed Google's window, or the browser blocked it: don't leave the page waiting forever
+      error_callback: (err: { type?: string }) => {
+        finish(() =>
+          reject(
+            new Error(
+              err?.type === "popup_failed_to_open"
+                ? "Your browser blocked the Google window. Allow pop-ups for this site and try again."
+                : "Sign-in was cancelled.",
+            ),
+          ),
+        );
       },
     });
 
+    setSigningIn(true);
     client.requestAccessToken();
   });
 }
 
 export function logout() {
   localStorage.removeItem(AUTH_TOKEN_KEY);
+  cacheUser(null);
 }
 
 /**
@@ -113,10 +201,17 @@ export async function restoreSession(): Promise<AppUser | null> {
 
   try {
     const { user } = await api.get<{ user: AppUser }>("/api/auth/me");
+    cacheUser(user);
     return user;
   } catch (err) {
     if (isBlockedApiError(err)) throw new BlockedError();
-    localStorage.removeItem(AUTH_TOKEN_KEY);
-    return null;
+    // Only a real "your session is not valid" answer signs you out. A slow or failed network must not,
+    // otherwise a brief hiccup would log people out.
+    if (err instanceof ApiError && err.status === 401) {
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+      cacheUser(null);
+      return null;
+    }
+    return readCachedUser();
   }
 }

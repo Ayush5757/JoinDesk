@@ -1,3 +1,4 @@
+import { PageLoader } from "@/components/joindesk/PageLoader";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
@@ -8,7 +9,7 @@ import { DeskGrid } from "@/components/joindesk/DeskGrid";
 import { JoinDeskModal } from "@/components/joindesk/JoinDeskModal";
 import { BlockedScreen } from "@/components/joindesk/BlockedScreen";
 import { getSpecialDesksPage } from "@/lib/desks";
-import { loginWithGoogle, logout, restoreSession, BlockedError, type AppUser } from "@/lib/auth";
+import { loginWithGoogle, logout, readCachedUser, restoreSession, BlockedError, type AppUser } from "@/lib/auth";
 import { type Desk } from "@/lib/joindesk";
 
 export const Route = createFileRoute("/special")({
@@ -36,6 +37,12 @@ function SpecialDesksPage() {
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
 
   useEffect(() => {
+    // Back / return visit: show the signed-in screen straight away, then confirm in the background.
+    const cached = readCachedUser();
+    if (cached) {
+      setUser(cached);
+      setCheckingSession(false);
+    }
     restoreSession()
       .then(setUser)
       .catch((err) => {
@@ -92,7 +99,7 @@ function SpecialDesksPage() {
   };
 
   if (checkingSession) {
-    return <div className="min-h-screen bg-background" />;
+    return <PageLoader />;
   }
 
   if (isBlocked) {

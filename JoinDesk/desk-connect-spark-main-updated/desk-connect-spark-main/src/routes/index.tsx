@@ -1,3 +1,4 @@
+import { PageLoader } from "@/components/joindesk/PageLoader";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -9,7 +10,7 @@ import { JoinDeskModal } from "@/components/joindesk/JoinDeskModal";
 import { JoinersModal } from "@/components/joindesk/JoinersModal";
 import { BlockedScreen } from "@/components/joindesk/BlockedScreen";
 import { deskFromApi, type Desk, type DeskApiRow } from "@/lib/joindesk";
-import { loginWithGoogle, logout, restoreSession, BlockedError, type AppUser } from "@/lib/auth";
+import { loginWithGoogle, logout, readCachedUser, restoreSession, BlockedError, type AppUser } from "@/lib/auth";
 import { enablePushNotifications } from "@/lib/push";
 import { getSpecialDesksPage } from "@/lib/desks";
 import { getAnnouncement } from "@/lib/settings";
@@ -100,6 +101,12 @@ function Index() {
 
   // Restore session (if any) on first load.
   useEffect(() => {
+    // Back / return visit: show the signed-in screen straight away, then confirm in the background.
+    const cached = readCachedUser();
+    if (cached) {
+      setUser(cached);
+      setCheckingSession(false);
+    }
     restoreSession()
       .then((restoredUser) => {
         setUser(restoredUser);
@@ -256,7 +263,7 @@ function Index() {
   };
 
   if (checkingSession) {
-    return <div className="min-h-screen bg-background" />;
+    return <PageLoader />;
   }
 
   if (isBlocked) {

@@ -18,9 +18,11 @@ import {
   EyeOff,
 } from "lucide-react";
 import { FocusTopBar } from "@/components/pomodoro/FocusTopBar";
+import { GoalsPopup } from "@/components/pomodoro/GoalsPopup";
+import { PageLoader } from "@/components/joindesk/PageLoader";
 import { BlockedScreen } from "@/components/joindesk/BlockedScreen";
 import { JoinDeskModal } from "@/components/joindesk/JoinDeskModal";
-import { loginWithGoogle, logout, restoreSession, BlockedError, type AppUser } from "@/lib/auth";
+import { loginWithGoogle, logout, readCachedUser, restoreSession, BlockedError, type AppUser } from "@/lib/auth";
 import { searchDesksFull } from "@/lib/desks";
 import { SceneBackground } from "@/components/pomodoro/SceneBackground";
 import { getScenes, sceneThumb, type Scene } from "@/lib/pomodoro";
@@ -611,6 +613,12 @@ function PomodoroPage() {
   const [isBlocked, setIsBlocked] = useState(false);
 
   useEffect(() => {
+    // Back / return visit: show the signed-in screen straight away, then confirm in the background.
+    const cached = readCachedUser();
+    if (cached) {
+      setUser(cached);
+      setCheckingSession(false);
+    }
     restoreSession()
       .then(setUser)
       .catch((err) => {
@@ -624,6 +632,7 @@ function PomodoroPage() {
   const music = useAmbientMusic();
   const timer = usePomodoroTimer();
   const [joinPanelOpen, setJoinPanelOpen] = useState(false);
+  const [goalsOpen, setGoalsOpen] = useState(false);
 
   // ---------------- background scenes ----------------
   const [scenes, setScenes] = useState<Scene[]>([]);
@@ -723,6 +732,7 @@ function PomodoroPage() {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === "h" || e.key === "H") setHud((v) => !v);
       if (e.key === "f" || e.key === "F") toggleFullscreen();
+      if (e.key === "g" || e.key === "G") setGoalsOpen((v) => !v);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -768,7 +778,7 @@ function PomodoroPage() {
     }
   };
 
-  if (checkingSession) return <div className="min-h-screen bg-background" />;
+  if (checkingSession) return <PageLoader />;
   if (isBlocked) return <BlockedScreen />;
 
   const chip =
@@ -798,6 +808,7 @@ function PomodoroPage() {
         user={user}
         onLogin={handleLogin}
         onJoin={() => setJoinPanelOpen(true)}
+        onGoals={() => setGoalsOpen(true)}
         hud={hud}
         onToggleHud={() => setHud((v) => !v)}
         canFullscreen={canFullscreen}
@@ -807,7 +818,7 @@ function PomodoroPage() {
 
       {fsHint && (
         <p className="pointer-events-none absolute left-1/2 top-4 z-40 -translate-x-1/2 rounded-full bg-black/45 px-4 py-2 text-xs font-medium backdrop-blur-md">
-          Full screen · move the mouse to the top for the menu · <b>F</b> or <b>Esc</b> to exit · <b>H</b> for panels
+          Full screen · move the mouse to the top for the menu · <b>F</b> or <b>Esc</b> to exit · <b>H</b> panels · <b>G</b> goals
         </p>
       )}
 
@@ -930,6 +941,10 @@ function PomodoroPage() {
           </div>
         )}
       </div>
+
+      {goalsOpen && (
+        <GoalsPopup user={user} onClose={() => setGoalsOpen(false)} onLogin={handleLogin} onBlocked={() => setIsBlocked(true)} />
+      )}
 
       {joinPanelOpen && <JoinDeskPanel onClose={() => setJoinPanelOpen(false)} />}
     </div>

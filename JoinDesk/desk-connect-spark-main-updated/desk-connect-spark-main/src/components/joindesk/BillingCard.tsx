@@ -4,6 +4,16 @@ import { toast } from "sonner";
 import { formatDate, getBillingStatus, payForAccess, type BillingStatus } from "@/lib/billing";
 
 /**
+ * The card only appears when it is needed: paid mode is ON and this person's free days (or
+ * subscription) are over. In every other case (free for everyone, inside the free days,
+ * subscription running or starting later, free passes) nothing is shown, so nobody
+ * gets worried by a message they don't need.
+ */
+export function billingCardVisible(status: Pick<BillingStatus["access"], "status">): boolean {
+  return status.status === "expired";
+}
+
+/**
  * "My access" card on the owner's profile: shows exactly what they have
  * (paid month with end date, free trial, free access from the admin) and a
  * Pay / Renew button. Renewing early adds on top of the remaining days.
@@ -27,8 +37,7 @@ export function BillingCard() {
 
   const { access } = status;
 
-  // While everything is free there is nothing to show (and nothing scary to read).
-  if (access.status === "open") return null;
+  if (!billingCardVisible(access)) return null;
 
   const pay = async () => {
     setPaying(true);
