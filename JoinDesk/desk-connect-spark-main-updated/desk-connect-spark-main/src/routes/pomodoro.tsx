@@ -26,6 +26,9 @@ import { loginWithGoogle, logout, readCachedUser, restoreSession, BlockedError, 
 import { searchDesksFull } from "@/lib/desks";
 import { SceneBackground } from "@/components/pomodoro/SceneBackground";
 import { getScenes, sceneThumb, type Scene } from "@/lib/pomodoro";
+import { ApiError } from "@/lib/api";
+import { trackerApi, type TrackMode, type TrackerState } from "@/lib/tracker";
+import { nextSyncAction, type Wanted } from "@/lib/focusSync";
 import type { Desk } from "@/lib/joindesk";
 
 export const Route = createFileRoute("/pomodoro")({
@@ -634,6 +637,59 @@ function PomodoroPage() {
   const [joinPanelOpen, setJoinPanelOpen] = useState(false);
   const [goalsOpen, setGoalsOpen] = useState(false);
 
+  // ---------------- study time: the Focus Timer can count it for you ----------------
+  // 'focus'  = the timer's study rounds are counted automatically (breaks are counted as breaks)
+  // 'manual' = the timer is only a timer; time is counted with Let's go / Stop in the tracker
+  // null     = not chosen yet
+  const [trackMode, setTrackMode] = useState<TrackMode>(null);
+  const [counting, setCounting] = useState(false); // is the tracker counting study time right now?
+  const onTrackerState = (t: TrackerState) => {
+    setTrackMode(t.mode);
+    setCounting(t.session.status === "studying");
+  };
+
+  // learn how this person counts study time
+  useEffect(() => {
+    if (!user) {
+      setTrackMode(null);
+      setCounting(false);
+      return;
+    }
+    trackerApi
+      .state()
+      .then(onTrackerState)
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  // Focus Timer mode: a running study round = studying; a break round or a paused timer = a break.
+  // Calls go one after another, so quick changes can never overtake each other.
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+  const lastWanted = useRef<Wanted | null>(null);
+  useEffect(() => {
+    if (!user || trackMode !== "focus") {
+      lastWanted.current = null;
+      return;
+    }
+    const { wanted, call } = nextSyncAction(lastWanted.current, timer.running, timer.phase);
+    lastWanted.current = wanted;
+    if (!call) return;
+    queue.current = queue.current.then(async () => {
+      try {
+        const t = wanted === "study" ? await trackerApi.start() : await trackerApi.pause();
+        setCounting(t.session.status === "studying");
+      } catch (err) {
+        if (wanted === "study" && err instanceof ApiError && err.status === 409) {
+          toast("Save your earlier day's progress first, then your time will count again.");
+          setGoalsOpen(true);
+        } else if (wanted === "study") {
+          toast("Couldn't update your study time. Check your connection.");
+        }
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timer.running, timer.phase, trackMode, user?.id]);
+
   // ---------------- background scenes ----------------
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [sceneIndex, setSceneIndex] = useState(0);
@@ -835,6 +891,16 @@ function PomodoroPage() {
                 </span>
               </div>
               <p className="mt-0.5 font-mono text-3xl font-semibold tabular-nums">{formatTime(timer.secondsLeft)}</p>
+              {user && trackMode === "focus" && (
+                <p className="text-[10px] text-white/60">
+                  {counting ? "● Counted as study time" : "Study rounds count as study time"}
+                </p>
+              )}
+              {user && trackMode === null && (
+                <button onClick={() => setGoalsOpen(true)} className="text-[10px] font-semibold text-white/70 underline-offset-2 hover:underline">
+                  Count my study time →
+                </button>
+              )}
               <div className="mt-2 flex items-center gap-1.5">
                 {timer.running ? (
                   <button onClick={timer.pause} title="Pause" className={round + " bg-white text-slate-900 hover:bg-white/90"}>
@@ -943,7 +1009,13 @@ function PomodoroPage() {
       </div>
 
       {goalsOpen && (
-        <GoalsPopup user={user} onClose={() => setGoalsOpen(false)} onLogin={handleLogin} onBlocked={() => setIsBlocked(true)} />
+        <GoalsPopup
+          user={user}
+          onClose={() => setGoalsOpen(false)}
+          onLogin={handleLogin}
+          onBlocked={() => setIsBlocked(true)}
+          onTrackerState={onTrackerState}
+        />
       )}
 
       {joinPanelOpen && <JoinDeskPanel onClose={() => setJoinPanelOpen(false)} />}

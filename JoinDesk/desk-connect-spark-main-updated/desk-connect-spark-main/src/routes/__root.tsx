@@ -13,6 +13,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "../components/ui/sonner";
 import { SigningInOverlay } from "../components/joindesk/SigningInOverlay";
+import { GlobalProgress } from "../components/joindesk/GlobalProgress";
 
 function NotFoundComponent() {
   return (
@@ -115,6 +116,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: appCss,
       },
+      // open the connection to our API early: the first request then doesn't wait for the handshake
+      ...(import.meta.env["VITE_API_URL"]
+        ? [{ rel: "preconnect", href: String(import.meta.env["VITE_API_URL"]), crossOrigin: "anonymous" as const }]
+        : []),
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
@@ -170,6 +175,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
+      <GlobalProgress />
       <SigningInOverlay />
       <Toaster />
     </QueryClientProvider>

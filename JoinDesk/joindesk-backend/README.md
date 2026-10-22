@@ -335,3 +335,7 @@ Run the "Random Chat" block at the bottom of schema.sql once in Supabase. API: /
 
 ## Desks, follow, paid/free, Focus scenes
 Run the "24-hour desks, subject, reuse" block at the bottom of schema.sql once. Normal desks stay listed for DESK_LIFESPAN_HOURS (24) after they are opened or reused; creators reuse them from their profile (POST /api/desks/:id/reuse). Anyone can follow a creator (POST /api/users/:id/follow) and gets a push notification when that creator opens or reuses a desk. Free/paid is one master switch plus free days for new accounts, set in the admin panel (Payments). Focus Timer background videos are managed in the admin panel (Focus scenes).
+
+
+## Study mode, speed notes
+Run the "how a person tracks study time" block at the bottom of schema.sql once (adds users.study_mode). A person picks how study time is counted: Focus Timer (the Pomodoro timer counts it) or by themselves (Let's go / Stop). src/utils/cache.js remembers a few rarely-changing lookups for a few seconds (blocked users, payment settings, tracker settings); saving them from the admin panel clears them at once on that server. Tip: deploy the backend in the same region as your Supabase project (Vercel -> Settings -> Functions -> Region).

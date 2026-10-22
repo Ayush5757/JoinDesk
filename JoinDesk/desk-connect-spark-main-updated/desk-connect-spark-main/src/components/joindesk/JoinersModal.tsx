@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Search, ShieldBan, ShieldCheck, Sparkles, Users } from "lucide-react";
+import { Loader2, Search, ShieldBan, ShieldCheck, Sparkles, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Modal } from "./Modal";
 import {
@@ -142,15 +142,14 @@ export function JoinersModal({
                       : "border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20")
                   }
                 >
-                  {j.isBlocked ? (
-                    <>
-                      <ShieldCheck className="h-3.5 w-3.5" /> Unblock
-                    </>
+                  {busyId === j.id ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : j.isBlocked ? (
+                    <ShieldCheck className="h-3.5 w-3.5" />
                   ) : (
-                    <>
-                      <ShieldBan className="h-3.5 w-3.5" /> Block
-                    </>
+                    <ShieldBan className="h-3.5 w-3.5" />
                   )}
+                  {j.isBlocked ? "Unblock" : "Block"}
                 </button>
               </div>
             </div>

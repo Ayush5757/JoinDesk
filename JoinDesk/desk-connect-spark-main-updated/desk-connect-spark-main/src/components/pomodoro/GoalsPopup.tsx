@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import { TrackerWorkspace } from "@/components/tracker/TrackerWorkspace";
 import { GoogleIcon } from "@/components/joindesk/GoogleIcon";
 import type { AppUser } from "@/lib/auth";
+import type { TrackerState } from "@/lib/tracker";
 
 /**
  * Goals, study time, history and reports inside the Focus Timer, in a popup so the picture stays clean.
@@ -14,11 +15,14 @@ export function GoalsPopup({
   onClose,
   onLogin,
   onBlocked,
+  onTrackerState,
 }: {
   user: AppUser | null;
   onClose: () => void;
   onLogin: () => void;
   onBlocked: () => void;
+  // fresh tracker data, so the Focus Timer knows how time is being counted
+  onTrackerState?: (s: TrackerState) => void;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -49,7 +53,7 @@ export function GoalsPopup({
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-8 pt-4 sm:px-6">
           {user ? (
-            <TrackerWorkspace onBlocked={onBlocked} />
+            <TrackerWorkspace onBlocked={onBlocked} onState={onTrackerState} inFocusTimer />
           ) : (
             <div className="mx-auto max-w-sm py-14 text-center">
               <h3 className="text-lg font-bold tracking-tight">Sign in to use your goals</h3>

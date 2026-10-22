@@ -63,6 +63,8 @@ async function loadScenes() {
 /** GET /api/pomodoro-scenes   (public) */
 export async function getScenes(req, res) {
   try {
+    // the same for everybody and rarely changed: browsers and Vercel's edge may keep it for 30 seconds
+    res.setHeader?.("Cache-Control", "public, max-age=30, s-maxage=30, stale-while-revalidate=120");
     return res.status(200).json({ scenes: await loadScenes() });
   } catch (err) {
     console.error("getScenes error:", err);

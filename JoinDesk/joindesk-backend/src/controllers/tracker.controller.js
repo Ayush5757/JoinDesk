@@ -432,3 +432,18 @@ export async function getReport(req, res) {
     return serverError(res, "getReport", err);
   }
 }
+
+// ---------------------------------------------------------------
+// POST /api/tracker/mode     Body: { mode: "focus" | "manual" }
+// ---------------------------------------------------------------
+export async function setMode(req, res) {
+  try {
+    const mode = req.body?.mode;
+    if (mode !== "focus" && mode !== "manual") return fail(res, 400, "Choose Focus Timer or Manual.");
+    const { error } = await supabaseAdmin.from("users").update({ study_mode: mode }).eq("id", req.user.id);
+    if (error) throw error;
+    return res.status(200).json(await buildState(req.user.id, Date.now()));
+  } catch (err) {
+    return serverError(res, "setMode", err);
+  }
+}

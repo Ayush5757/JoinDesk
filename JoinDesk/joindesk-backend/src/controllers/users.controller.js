@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "../config/supabase.js";
+import { forget } from "../utils/cache.js";
 import { uploadAvatar } from "../services/storage.js";
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024; // 5MB
@@ -138,6 +139,7 @@ export async function blockUser(req, res) {
 
     if (error) throw error;
 
+    forget(`blocking:${id}`); // they no longer see this person's desks: take effect now
     // someone you block can't keep following you
     await supabaseAdmin.from("special_users").delete().eq("owner_id", req.user.id).eq("special_user_id", id);
 
@@ -162,6 +164,7 @@ export async function unblockUser(req, res) {
       .eq("blocked_id", id);
 
     if (error) throw error;
+    forget(`blocking:${id}`);
 
     return res.status(200).json({ blocked: false });
   } catch (err) {

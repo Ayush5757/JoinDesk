@@ -1,4 +1,5 @@
 import { ADMIN_TOKEN_KEY } from "./adminAuth";
+import { trackedFetch } from "./netActivity";
 import { ApiError } from "./api";
 
 const API_URL = (import.meta.env["VITE_API_URL"] as string) || "http://localhost:5000";
@@ -15,7 +16,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     },
   };
 
-  const res = await fetch(`${API_URL}${path}`, init);
+  const res = await trackedFetch(`${API_URL}${path}`, init);
 
   const isJson = res.headers.get("content-type")?.includes("application/json");
   const body = isJson ? await res.json() : null;
@@ -30,7 +31,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 // For file downloads (Excel exports): same auth, but returns the raw file.
 async function requestBlob(path: string): Promise<Blob> {
   const token = localStorage.getItem(ADMIN_TOKEN_KEY);
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await trackedFetch(`${API_URL}${path}`, {
     method: "GET",
     headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
   });

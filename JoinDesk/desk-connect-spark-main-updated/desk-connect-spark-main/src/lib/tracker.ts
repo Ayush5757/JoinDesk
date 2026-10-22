@@ -37,6 +37,8 @@ export type FourDay = {
   target: number | null;
 };
 
+export type TrackMode = "focus" | "manual" | null;
+
 export type SessionStatus = "idle" | "studying" | "break";
 
 export type TrackerState = {
@@ -44,6 +46,8 @@ export type TrackerState = {
   serverNow: string;
   settings: { maxGoalDays: number };
   autoClosed: boolean; // a never-stopped session was closed automatically
+  // How this person counts study time: "focus" = the Focus Timer does it, "manual" = Let's go / Stop, null = not chosen yet
+  mode: TrackMode;
   session: {
     status: SessionStatus;
     since: string | null;
@@ -119,6 +123,7 @@ export const trackerApi = {
   pause: () => api.post<TrackerState>("/api/tracker/session/pause"),
   end: (progress?: number) =>
     api.post<TrackerState>("/api/tracker/session/end", progress === undefined ? {} : { progress }),
+  setMode: (mode: "focus" | "manual") => api.post<TrackerState>("/api/tracker/mode", { mode }),
   createGoal: (title: string, days: number) => api.post<TrackerState>("/api/tracker/goals", { title, days }),
   continueGoal: (id: string, days: number) =>
     api.post<TrackerState>(`/api/tracker/goals/${id}/continue`, { days }),

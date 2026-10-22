@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowUpRight, Eye, EyeOff, Pencil, RotateCcw, Sparkles, Trash2, Users } from "lucide-react";
+import { useState } from "react";
+import { ArrowUpRight, Eye, EyeOff, Loader2, Pencil, RotateCcw, Sparkles, Trash2, Users } from "lucide-react";
 import { isExpired, relativeTime, timeLeftLabel, type Desk } from "@/lib/joindesk";
 
 export function DeskCard({
@@ -17,14 +18,25 @@ export function DeskCard({
   isOwn?: boolean | undefined;
   onViewJoiners?: ((d: Desk) => void) | undefined;
   onEdit?: ((d: Desk) => void) | undefined;
-  onDelete?: ((d: Desk) => void) | undefined;
-  onToggleHide?: ((d: Desk) => void) | undefined;
+  onDelete?: ((d: Desk) => void | Promise<void>) | undefined;
+  onToggleHide?: ((d: Desk) => void | Promise<void>) | undefined;
   // The creator reopens an expired desk for another 24 hours.
-  onReuse?: ((d: Desk) => void) | undefined;
+  onReuse?: ((d: Desk) => void | Promise<void>) | undefined;
 }) {
   const hasOwnerActions = isOwn && (onViewJoiners || onEdit || onDelete || onToggleHide);
   const isSpecial = desk.isSpecial;
   const expired = isExpired(desk);
+  // owner actions talk to the server: show a spinner on the button until they finish
+  const [pending, setPending] = useState<"reuse" | "hide" | "delete" | null>(null);
+  const run = async (key: "reuse" | "hide" | "delete", fn?: (d: Desk) => void | Promise<void>) => {
+    if (!fn || pending) return;
+    setPending(key);
+    try {
+      await fn(desk);
+    } finally {
+      setPending(null);
+    }
+  };
 
   return (
     <article
@@ -99,11 +111,12 @@ export function DeskCard({
       <div className="mt-5 flex items-center gap-2">
         {expired && isOwn && onReuse ? (
           <button
-            onClick={() => onReuse(desk)}
+            onClick={() => void run("reuse", onReuse)}
+            disabled={pending !== null}
             className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-foreground px-4 py-2.5 text-sm font-semibold text-background shadow-soft transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98]"
           >
-            <RotateCcw className="h-4 w-4" />
-            Reuse for 24 hours
+            {pending === "reuse" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+            {pending === "reuse" ? "Reopening…" : "Reuse for 24 hours"}
           </button>
         ) : (
         <button
@@ -143,21 +156,29 @@ export function DeskCard({
           )}
           {onToggleHide && (
             <button
-              onClick={() => onToggleHide(desk)}
+              onClick={() => void run("hide", onToggleHide)}
+              disabled={pending !== null}
               title={desk.isHidden ? "Unhide from dashboard" : "Hide from dashboard"}
               className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
-              {desk.isHidden ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+              {pending === "hide" ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : desk.isHidden ? (
+                <Eye className="h-3.5 w-3.5" />
+              ) : (
+                <EyeOff className="h-3.5 w-3.5" />
+              )}
               {desk.isHidden ? "Unhide" : "Hide"}
             </button>
           )}
           {onDelete && (
             <button
-              onClick={() => onDelete(desk)}
+              onClick={() => void run("delete", onDelete)}
+              disabled={pending !== null}
               title="Delete this desk"
-              className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-destructive/30 bg-destructive/10 px-3 py-1.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/20"
+              className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-destructive/30 bg-destructive/10 px-3 py-1.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/20 disabled:opacity-60"
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              {pending === "delete" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
               Delete
             </button>
           )}

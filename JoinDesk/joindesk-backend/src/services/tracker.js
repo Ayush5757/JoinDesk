@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "../config/supabase.js";
 import { getBillingConfig } from "../config/billing.js";
 import { BUILT_IN } from "./motivationBank.js";
+import { remember, forget } from "../utils/cache.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 // Time is measured ONLY from button clicks (Let's go / Stop / Resume / End):
@@ -171,10 +172,13 @@ export function pickMotivation(kind, date, adminRows = [], n = 0) {
 // Database helpers
 // =========================
 export async function loadTrackerSettings() {
-  const { data } = await supabaseAdmin.from("site_settings").select("value").eq("key", SETTINGS_KEY).maybeSingle();
+  const value = await remember(`setting:${SETTINGS_KEY}`, 30_000, async () => {
+    const { data } = await supabaseAdmin.from("site_settings").select("value").eq("key", SETTINGS_KEY).maybeSingle();
+    return data?.value ?? null;
+  });
   let obj = {};
   try {
-    obj = data?.value ? JSON.parse(data.value) : {};
+    obj = value ? JSON.parse(value) : {};
   } catch {
     obj = {};
   }
@@ -191,16 +195,22 @@ export async function saveTrackerSettings({ maxGoalDays }) {
     updated_at: new Date().toISOString(),
   });
   if (error) throw error;
+  forget(`setting:${SETTINGS_KEY}`);
   return { maxGoalDays: n };
 }
 
 export async function loadMotivations() {
-  const { data, error } = await supabaseAdmin
-    .from("study_motivations")
-    .select("id, kind, text, author, show_date, created_at");
-  if (error) throw error;
-  return data || [];
+  // the same list for everybody: remembered for 30 seconds (admin changes make this server forget it at once)
+  return remember("motivations", 30_000, async () => {
+    const { data, error } = await supabaseAdmin
+      .from("study_motivations")
+      .select("id, kind, text, author, show_date, created_at");
+    if (error) throw error;
+    return data || [];
+  });
 }
+
+export const forgetMotivations = () => forget("motivations");
 
 /**
  * Closes a stretch that was never stopped (tab closed, forgot to press End).
@@ -257,13 +267,30 @@ export async function loadGoalDays(goalIds) {
   return data || [];
 }
 
+/** Every saved day of every goal of one person (small), so state can be built in a single round trip. */
+export async function loadGoalDaysForUser(userId) {
+  const { data, error } = await supabaseAdmin
+    .from("study_goal_days")
+    .select("goal_id, day, progress, saved_at")
+    .eq("user_id", userId);
+  if (error) throw error;
+  return data || [];
+}
+
 const FOUR_DAYS = 4;
 
 /** Everything the tracker page needs in one go. */
 export async function buildState(userId, now = Date.now(), { autoClosed = false } = {}) {
   const today = istDate(now);
-  const [settings, adminMot, goal] = await Promise.all([loadTrackerSettings(), loadMotivations(), loadActiveGoal(userId)]);
-  const segments = await loadSegments(userId, addDays(today, -45));
+  // everything independent is asked together: one round trip instead of three
+  const [settings, adminMot, goal, prefs, segments, goalDaysAll] = await Promise.all([
+    loadTrackerSettings(),
+    loadMotivations(),
+    loadActiveGoal(userId),
+    supabaseAdmin.from("users").select("study_mode").eq("id", userId).maybeSingle(),
+    loadSegments(userId, addDays(today, -45)),
+    loadGoalDaysForUser(userId),
+  ]);
   const byDay = perDay(segments, now);
 
   const open = segments.find((s) => !s.ended_at) || null;
@@ -273,7 +300,7 @@ export async function buildState(userId, now = Date.now(), { autoClosed = false 
   const startedToday = segments.some((s) => istDate(Date.parse(s.started_at)) === today);
   const resumesToday = Math.max(0, todayStudySegs.length - 1);
 
-  const rows = goal ? (await loadGoalDays([goal.id])).filter((r) => r.goal_id === goal.id) : [];
+  const rows = goal ? goalDaysAll.filter((r) => r.goal_id === goal.id) : [];
   const guidance = goal ? goalGuidance(goal, rows, today) : null;
   const goalByDay = goal ? perDay(segments.filter((s) => s.goal_id === goal.id), now) : {};
   const pending = goal ? pendingDays(goal, rows, goalByDay, today) : [];
@@ -314,6 +341,8 @@ export async function buildState(userId, now = Date.now(), { autoClosed = false 
     serverNow: new Date(now).toISOString(),
     settings,
     autoClosed,
+    // How this person counts study time: "focus" (Focus Timer does it), "manual" (Let's go / Stop), or null (not chosen yet)
+    mode: prefs?.data?.study_mode === "focus" || prefs?.data?.study_mode === "manual" ? prefs.data.study_mode : null,
     session: {
       status: open ? (open.kind === "break" ? "break" : "studying") : "idle",
       since: open ? open.started_at : null,

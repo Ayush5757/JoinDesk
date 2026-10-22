@@ -511,3 +511,18 @@ update public.desks set active_at = created_at where active_at is null;
 alter table public.desks alter column active_at set default now();
 alter table public.desks alter column active_at set not null;
 create index if not exists desks_active_at_idx on public.desks (active_at desc);
+
+
+-- =========================
+-- Feature update: how a person tracks study time (Focus Timer or by hand)
+-- =========================
+-- Safe to re-run. 'focus'  = the Focus Timer (Pomodoro) counts study time automatically.
+--                 'manual' = the person presses Let's go / Stop in the tracker.
+--                 NULL     = not chosen yet (the app asks once).
+alter table public.users add column if not exists study_mode text;
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'users_study_mode_check') then
+    alter table public.users add constraint users_study_mode_check check (study_mode in ('manual', 'focus'));
+  end if;
+end $$;

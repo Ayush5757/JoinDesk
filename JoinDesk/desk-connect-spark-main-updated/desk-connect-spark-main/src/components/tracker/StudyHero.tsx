@@ -1,4 +1,5 @@
-import { Flame, Loader2, Pause, Play, Square } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { Flame, Loader2, Pause, Play, Square, Timer } from "lucide-react";
 import type { TrackerState } from "@/lib/tracker";
 import { effortNudge, greeting } from "@/lib/trackerCopy";
 
@@ -13,12 +14,18 @@ export function StudyHero({
   busy,
   onMain,
   onEnd,
+  inFocusTimer = false,
+  onChangeMode,
 }: {
   state: TrackerState;
   busy: boolean;
   onMain: () => void;
   onEnd: () => void;
+  // true when this is shown inside the Focus Timer page (so we don't link to it from itself)
+  inFocusTimer?: boolean;
+  onChangeMode?: (() => void) | undefined;
 }) {
+  const focusMode = state.mode === "focus";
   const { status, startedToday } = state.session;
   const studying = status === "studying";
   const onBreak = status === "break";
@@ -75,17 +82,41 @@ export function StudyHero({
 
       {nudge && <p className="mx-auto mt-4 max-w-md text-sm text-muted-foreground">{nudge}</p>}
 
-      <button
-        onClick={onMain}
-        disabled={busy}
-        className={
-          "mx-auto mt-9 inline-flex h-14 w-full max-w-xs items-center justify-center gap-2.5 rounded-full text-base font-semibold shadow-soft transition-all active:scale-[0.98] disabled:opacity-60 " +
-          button.cls
-        }
-      >
-        {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : button.icon}
-        {button.label}
-      </button>
+      {focusMode ? (
+        <div className="mx-auto mt-8 max-w-sm rounded-2xl bg-muted/50 px-5 py-4 text-sm">
+          <p className="flex items-center justify-center gap-2 font-semibold">
+            <Timer className="h-4 w-4" />
+            {studying ? "The Focus Timer is counting your study time" : onBreak ? "On a break" : "Your time is counted by the Focus Timer"}
+          </p>
+          <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+            {studying
+              ? "Keep going. It pauses by itself during breaks."
+              : inFocusTimer
+                ? "Press Start on the timer when you're ready. Study rounds are counted, breaks are not."
+                : "Open the Focus Timer and press Start. Study rounds are counted, breaks are not."}
+          </p>
+          {!inFocusTimer && (
+            <Link
+              to="/pomodoro"
+              className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-foreground px-5 py-2 text-xs font-semibold text-background transition-opacity hover:opacity-90"
+            >
+              <Timer className="h-3.5 w-3.5" /> Open Focus Timer
+            </Link>
+          )}
+        </div>
+      ) : (
+        <button
+          onClick={onMain}
+          disabled={busy}
+          className={
+            "mx-auto mt-9 inline-flex h-14 w-full max-w-xs items-center justify-center gap-2.5 rounded-full text-base font-semibold shadow-soft transition-all active:scale-[0.98] disabled:opacity-60 " +
+            button.cls
+          }
+        >
+          {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : button.icon}
+          {button.label}
+        </button>
+      )}
 
       {startedToday && (
         <button
@@ -95,6 +126,15 @@ export function StudyHero({
         >
           <Square className="h-3.5 w-3.5" /> End today's session
         </button>
+      )}
+
+      {onChangeMode && (
+        <p className="mt-5 text-[11px] text-muted-foreground">
+          Counting time: <b className="text-foreground">{focusMode ? "Focus Timer" : "By myself"}</b> ·{" "}
+          <button onClick={onChangeMode} className="font-semibold underline-offset-2 hover:underline">
+            Change
+          </button>
+        </p>
       )}
 
       {state.streak.days >= 2 && (

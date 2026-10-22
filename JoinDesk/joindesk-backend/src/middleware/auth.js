@@ -1,8 +1,10 @@
 import jwt from "jsonwebtoken";
 import "dotenv/config";
 import { supabaseAdmin } from "../config/supabase.js";
+import { remember } from "../utils/cache.js";
 
 const { JWT_SECRET } = process.env;
+const BLOCK_CHECK_TTL_MS = 10_000;
 
 if (!JWT_SECRET) {
   throw new Error("Missing JWT_SECRET. Copy .env.example to .env and fill it in.");
@@ -32,13 +34,18 @@ export async function requireAuth(req, res, next) {
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
 
-    const { data: userRow } = await supabaseAdmin
-      .from("users")
-      .select("is_blocked")
-      .eq("id", decoded.id)
-      .maybeSingle();
+    // Asked on EVERY request, so it is remembered for a few seconds: an admin block takes effect
+    // within BLOCK_CHECK_TTL_MS (immediately on the server that handled the block).
+    const blocked = await remember(`blocked:${decoded.id}`, BLOCK_CHECK_TTL_MS, async () => {
+      const { data: userRow } = await supabaseAdmin
+        .from("users")
+        .select("is_blocked")
+        .eq("id", decoded.id)
+        .maybeSingle();
+      return Boolean(userRow?.is_blocked);
+    });
 
-    if (userRow?.is_blocked) {
+    if (blocked) {
       return res.status(403).json({ error: "blocked", blocked: true });
     }
 

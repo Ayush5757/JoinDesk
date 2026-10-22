@@ -1,3 +1,5 @@
+import { trackedFetch } from "./netActivity";
+
 // Key our own backend-issued session token is stored under. Both this
 // file and lib/auth.ts read/write this same localStorage key.
 export const AUTH_TOKEN_KEY = "auth_token";
@@ -28,7 +30,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     },
   };
 
-  const res = await fetch(`${API_URL}${path}`, init);
+  const res = await trackedFetch(`${API_URL}${path}`, init);
 
   const isJson = res.headers.get("content-type")?.includes("application/json");
   const body = isJson ? await res.json() : null;
@@ -46,7 +48,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 async function requestForm<T>(path: string, method: string, formData: FormData): Promise<T> {
   const token = localStorage.getItem(AUTH_TOKEN_KEY);
 
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await trackedFetch(`${API_URL}${path}`, {
     method,
     headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: formData,

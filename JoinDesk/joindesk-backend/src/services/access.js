@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "../config/supabase.js";
 import { getBillingConfig } from "../config/billing.js";
 import { getRandomConfig } from "../config/random.js";
+import { remember, forget } from "../utils/cache.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const PAYMENT_KEY = "payment_settings";
@@ -89,12 +90,17 @@ export function paywallFlags(payment, now = Date.now(), cfg = getBillingConfig()
 }
 
 export async function loadPaymentSettings(cfg = getBillingConfig()) {
-  const { data } = await supabaseAdmin
-    .from("site_settings")
-    .select("value")
-    .eq("key", PAYMENT_KEY)
-    .maybeSingle();
-  return normalizePaymentSettings(data?.value, cfg);
+  // Almost every request needs this and it rarely changes: remembered for a few seconds
+  // (saving it from the admin panel makes this server forget it at once).
+  const raw = await remember(`setting:${PAYMENT_KEY}`, 10_000, async () => {
+    const { data } = await supabaseAdmin
+      .from("site_settings")
+      .select("value")
+      .eq("key", PAYMENT_KEY)
+      .maybeSingle();
+    return data?.value ?? null;
+  });
+  return normalizePaymentSettings(raw, cfg);
 }
 
 export async function savePaymentSettings(input) {
@@ -130,6 +136,7 @@ export async function savePaymentSettings(input) {
     updated_at: new Date().toISOString(),
   });
   if (error) throw error;
+  forget(`setting:${PAYMENT_KEY}`);
   return normalizePaymentSettings(JSON.stringify(clean));
 }
 
@@ -184,14 +191,14 @@ export async function loadAccessContext(userId) {
   if (!user) return null;
 
   const email = (user.email || "").toLowerCase();
-  const { data: grants, error: grantsError } = await supabaseAdmin
-    .from("access_grants")
-    .select("id, scope, desk_id, note, granted_at")
-    .eq("email", email);
-  if (grantsError) throw grantsError;
-
-  const [manualSubs, payment] = await Promise.all([loadManualSubs(userId), loadPaymentSettings()]);
-  return { user, grants: grants || [], manualSubs, payment };
+  // three independent lookups: ask them together instead of one after another
+  const [grantsResult, manualSubs, payment] = await Promise.all([
+    supabaseAdmin.from("access_grants").select("id, scope, desk_id, note, granted_at").eq("email", email),
+    loadManualSubs(userId),
+    loadPaymentSettings(),
+  ]);
+  if (grantsResult.error) throw grantsResult.error;
+  return { user, grants: grantsResult.data || [], manualSubs, payment };
 }
 
 /**

@@ -2,6 +2,7 @@ import { supabaseAdmin } from "../config/supabase.js";
 import { notifySpecialUsersOfNewDesk } from "../services/push.js";
 import { loadAccessContext, evaluateAccess, paymentInfo } from "../services/access.js";
 import { deskCutoffIso, getDeskConfig } from "../config/desks.js";
+import { remember } from "../utils/cache.js";
 
 const MEETING_LINK_REGEX = /^https?:\/\/.+\..+/i; // any platform: Google Meet, Zoom, Teams, etc.
 const MAX_SUBJECT = 60;
@@ -44,12 +45,15 @@ const publicDesk = (row) => withExpiry(withoutLink(row));
  */
 async function getCreatorIdsBlockingUser(userId) {
   if (!userId) return [];
-  const { data, error } = await supabaseAdmin
-    .from("user_blocks")
-    .select("blocker_id")
-    .eq("blocked_id", userId);
-  if (error) throw error;
-  return (data || []).map((r) => r.blocker_id);
+  // remembered for a few seconds (the block/unblock handlers forget it at once)
+  return remember(`blocking:${userId}`, 10_000, async () => {
+    const { data, error } = await supabaseAdmin
+      .from("user_blocks")
+      .select("blocker_id")
+      .eq("blocked_id", userId);
+    if (error) throw error;
+    return (data || []).map((r) => r.blocker_id);
+  });
 }
 
 /**
@@ -57,9 +61,11 @@ async function getCreatorIdsBlockingUser(userId) {
  * from everyone's dashboard/search, same as expired desks would be.
  */
 async function getAdminBlockedCreatorIds() {
-  const { data, error } = await supabaseAdmin.from("users").select("id").eq("is_blocked", true);
-  if (error) throw error;
-  return (data || []).map((r) => r.id);
+  return remember("adminBlockedIds", 10_000, async () => {
+    const { data, error } = await supabaseAdmin.from("users").select("id").eq("is_blocked", true);
+    if (error) throw error;
+    return (data || []).map((r) => r.id);
+  });
 }
 
 /**

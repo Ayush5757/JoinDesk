@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "../config/supabase.js";
-import { addDays, isDateStr, loadTrackerSettings, saveTrackerSettings } from "../services/tracker.js";
+import { addDays, forgetMotivations, isDateStr, loadTrackerSettings, saveTrackerSettings } from "../services/tracker.js";
 
 const KINDS = ["start", "resume", "end"];
 
@@ -49,6 +49,7 @@ export async function addMotivations(req, res) {
     if (startDate) {
       const dates = lines.map((_, i) => addDays(startDate, i));
       await supabaseAdmin.from("study_motivations").delete().eq("kind", kind).in("show_date", dates);
+      forgetMotivations();
     }
 
     const rows = lines.map((text, i) => ({
@@ -59,6 +60,7 @@ export async function addMotivations(req, res) {
     }));
     const { data, error } = await supabaseAdmin.from("study_motivations").insert(rows).select();
     if (error) throw error;
+    forgetMotivations();
     return res.status(201).json({ added: (data || rows).length });
   } catch (err) {
     console.error("admin addMotivations error:", err);
@@ -71,6 +73,7 @@ export async function deleteMotivation(req, res) {
   try {
     const { error } = await supabaseAdmin.from("study_motivations").delete().eq("id", req.params.id);
     if (error) throw error;
+    forgetMotivations();
     return res.status(200).json({ deleted: true });
   } catch (err) {
     console.error("admin deleteMotivation error:", err);

@@ -68,9 +68,11 @@ function ProfilePage() {
       setIsCreateModalOpen(false);
       setRefreshKey((k) => k + 1);
       toast.success("Desk created — find it on the dashboard.");
+      return true;
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Failed to create desk.";
       toast.error(message);
+      return false;
     }
   };
 

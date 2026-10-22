@@ -9,6 +9,7 @@ import { ReportPanel } from "@/components/tracker/ReportPanel";
 import { ProgressSheet } from "@/components/tracker/ProgressSheet";
 import { GoalFormSheet } from "@/components/tracker/GoalFormSheet";
 import { MomentOverlay } from "@/components/tracker/MomentOverlay";
+import { ModeChooser } from "@/components/tracker/ModeChooser";
 import { ApiError } from "@/lib/api";
 import {
   dayLabel,
@@ -34,9 +35,14 @@ const HIDE_CLOCK_KEY = "tracker_hide_clock";
 export function TrackerWorkspace({
   deskTitle = "",
   onBlocked,
+  onState,
+  inFocusTimer = false,
 }: {
-  deskTitle?: string;
-  onBlocked?: () => void;
+  deskTitle?: string | undefined;
+  onBlocked?: (() => void) | undefined;
+  // told whenever fresh data arrives (the Focus Timer uses it to know how time is being counted)
+  onState?: ((s: TrackerState) => void) | undefined;
+  inFocusTimer?: boolean | undefined;
 }) {
   const [state, setState] = useState<TrackerState | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -50,11 +56,16 @@ export function TrackerWorkspace({
   const [moment, setMoment] = useState<Moment | null>(null);
   const [historyKey, setHistoryKey] = useState(0);
   const [hideClock, setHideClock] = useState(false);
+  const [changingMode, setChangingMode] = useState(false);
 
-  const apply = useCallback((s: TrackerState) => {
-    fetchedAt.current = Date.now();
-    setState(s);
-  }, []);
+  const apply = useCallback(
+    (s: TrackerState) => {
+      fetchedAt.current = Date.now();
+      setState(s);
+      onState?.(s);
+    },
+    [onState],
+  );
 
   const refresh = useCallback(async () => {
     try {
@@ -219,7 +230,28 @@ export function TrackerWorkspace({
               </div>
             ) : (
               <>
-                <StudyHero state={state} busy={busy} onMain={onMain} onEnd={onEnd} />
+                {state.mode === null || changingMode ? (
+                  <ModeChooser
+                    current={state.mode}
+                    busy={busy}
+                    onChoose={(mode) =>
+                      void run(
+                        () => trackerApi.setMode(mode),
+                        () => setChangingMode(false),
+                      )
+                    }
+                    onCancel={state.mode !== null ? () => setChangingMode(false) : undefined}
+                  />
+                ) : (
+                  <StudyHero
+                    state={state}
+                    busy={busy}
+                    onMain={onMain}
+                    onEnd={onEnd}
+                    inFocusTimer={inFocusTimer}
+                    onChangeMode={() => setChangingMode(true)}
+                  />
+                )}
                 <GoalCard goal={goal} onUpdate={() => setSheet("update")} onNew={() => setSheet("goal")} />
                 <FourDayTracker state={state} liveTodaySec={liveTodaySec} />
               </>

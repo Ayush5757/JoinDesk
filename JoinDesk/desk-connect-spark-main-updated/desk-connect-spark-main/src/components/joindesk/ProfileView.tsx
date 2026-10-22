@@ -262,15 +262,14 @@ export function ProfileView({
                       : "bg-brand-gradient text-primary-foreground shadow-soft")
                   }
                 >
-                  {iFollow ? (
-                    <>
-                      <BellOff className="h-4 w-4" /> Following
-                    </>
+                  {followBusy ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : iFollow ? (
+                    <BellOff className="h-4 w-4" />
                   ) : (
-                    <>
-                      <Bell className="h-4 w-4" /> Follow
-                    </>
+                    <Bell className="h-4 w-4" />
                   )}
+                  {iFollow ? "Following" : "Follow"}
                 </button>
               )}
               <button
@@ -283,15 +282,14 @@ export function ProfileView({
                     : "border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20")
                 }
               >
-                {iBlockedThem ? (
-                  <>
-                    <ShieldCheck className="h-4 w-4" /> Unblock {user.name.split(" ")[0]}
-                  </>
+                {blockBusy ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : iBlockedThem ? (
+                  <ShieldCheck className="h-4 w-4" />
                 ) : (
-                  <>
-                    <ShieldBan className="h-4 w-4" /> Block {user.name.split(" ")[0]}
-                  </>
+                  <ShieldBan className="h-4 w-4" />
                 )}
+                {iBlockedThem ? "Unblock" : "Block"} {user.name.split(" ")[0]}
               </button>
               {theyBlockedMe && (
                 <span className="text-xs text-muted-foreground">

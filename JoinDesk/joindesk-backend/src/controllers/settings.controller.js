@@ -12,6 +12,7 @@ const ANNOUNCEMENT_KEY = "announcement";
  */
 export async function getAnnouncement(req, res) {
   try {
+    res.setHeader?.("Cache-Control", "public, max-age=30, s-maxage=30, stale-while-revalidate=120");
     const { data } = await supabaseAdmin
       .from("site_settings")
       .select("value, updated_at")

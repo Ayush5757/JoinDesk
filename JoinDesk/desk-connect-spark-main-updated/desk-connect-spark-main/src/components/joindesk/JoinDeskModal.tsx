@@ -47,12 +47,9 @@ export function JoinDeskModal({
         window.location.href = meetLink;
       }
       onClose();
-      // Special desks come with the Study Tracker: the Meet link is already
-      // open in its own tab, so THIS tab becomes the tracker (one click,
-      // two tabs, and no second pop-up for the browser to block).
-      if (desk.isSpecial) {
-        window.location.assign(`/tracker?d=${encodeURIComponent(desk.title)}`);
-      }
+      // Every desk comes with the Study Tracker: the Meet link is already open in its own tab, so THIS tab
+      // becomes the tracker (one click, two tabs, and no second pop-up for the browser to block).
+      window.location.assign(`/tracker?d=${encodeURIComponent(desk.title)}`);
     } catch (err) {
       win?.close();
       const info = paymentInfoFromError(err);

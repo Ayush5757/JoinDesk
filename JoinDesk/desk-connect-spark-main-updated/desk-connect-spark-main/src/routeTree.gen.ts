@@ -12,9 +12,9 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as PomodoroRouteImport } from './routes/pomodoro'
-import { Route as TrackerRouteImport } from './routes/tracker'
 import { Route as RandomRouteImport } from './routes/random'
 import { Route as SpecialRouteImport } from './routes/special'
+import { Route as TrackerRouteImport } from './routes/tracker'
 import { Route as ProfileIdRouteImport } from './routes/profile.$id'
 
 const IndexRoute = IndexRouteImport.update({
@@ -37,14 +37,14 @@ const RandomRoute = RandomRouteImport.update({
   path: '/random',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TrackerRoute = TrackerRouteImport.update({
-  id: '/tracker',
-  path: '/tracker',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const SpecialRoute = SpecialRouteImport.update({
   id: '/special',
   path: '/special',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TrackerRoute = TrackerRouteImport.update({
+  id: '/tracker',
+  path: '/tracker',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProfileIdRoute = ProfileIdRouteImport.update({
@@ -57,18 +57,18 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/pomodoro': typeof PomodoroRoute
+  '/random': typeof RandomRoute
   '/special': typeof SpecialRoute
   '/tracker': typeof TrackerRoute
-  '/random': typeof RandomRoute
   '/profile/$id': typeof ProfileIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/pomodoro': typeof PomodoroRoute
+  '/random': typeof RandomRoute
   '/special': typeof SpecialRoute
   '/tracker': typeof TrackerRoute
-  '/random': typeof RandomRoute
   '/profile/$id': typeof ProfileIdRoute
 }
 export interface FileRoutesById {
@@ -76,26 +76,48 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/pomodoro': typeof PomodoroRoute
+  '/random': typeof RandomRoute
   '/special': typeof SpecialRoute
   '/tracker': typeof TrackerRoute
-  '/random': typeof RandomRoute
   '/profile/$id': typeof ProfileIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin' | '/pomodoro' | '/special' | '/tracker' | '/random' | '/profile/$id'
+  fullPaths:
+    | '/'
+    | '/admin'
+    | '/pomodoro'
+    | '/random'
+    | '/special'
+    | '/tracker'
+    | '/profile/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/pomodoro' | '/special' | '/tracker' | '/random' | '/profile/$id'
-  id: '__root__' | '/' | '/admin' | '/pomodoro' | '/special' | '/tracker' | '/random' | '/profile/$id'
+  to:
+    | '/'
+    | '/admin'
+    | '/pomodoro'
+    | '/random'
+    | '/special'
+    | '/tracker'
+    | '/profile/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/admin'
+    | '/pomodoro'
+    | '/random'
+    | '/special'
+    | '/tracker'
+    | '/profile/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   PomodoroRoute: typeof PomodoroRoute
+  RandomRoute: typeof RandomRoute
   SpecialRoute: typeof SpecialRoute
   TrackerRoute: typeof TrackerRoute
-  RandomRoute: typeof RandomRoute
   ProfileIdRoute: typeof ProfileIdRoute
 }
 
@@ -122,18 +144,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PomodoroRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/special': {
-      id: '/special'
-      path: '/special'
-      fullPath: '/special'
-      preLoaderRoute: typeof SpecialRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/random': {
       id: '/random'
       path: '/random'
       fullPath: '/random'
       preLoaderRoute: typeof RandomRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/special': {
+      id: '/special'
+      path: '/special'
+      fullPath: '/special'
+      preLoaderRoute: typeof SpecialRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tracker': {
@@ -157,9 +179,9 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   PomodoroRoute: PomodoroRoute,
+  RandomRoute: RandomRoute,
   SpecialRoute: SpecialRoute,
   TrackerRoute: TrackerRoute,
-  RandomRoute: RandomRoute,
   ProfileIdRoute: ProfileIdRoute,
 }
 export const routeTree = rootRouteImport

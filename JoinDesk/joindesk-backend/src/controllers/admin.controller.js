@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import "dotenv/config";
 import { supabaseAdmin } from "../config/supabase.js";
+import { forget } from "../utils/cache.js";
 
 const { JWT_SECRET, ADMIN_PASSWORD } = process.env;
 // Falls back to the password chosen when this feature was built, so the
@@ -364,6 +365,8 @@ export async function blockUserAdmin(req, res) {
       .update({ is_blocked: true, blocked_at: new Date().toISOString() })
       .eq("id", id);
     if (error) throw error;
+    forget(`blocked:${id}`); // cut them off at once on this server
+    forget("adminBlockedIds");
     return res.status(200).json({ blocked: true });
   } catch (err) {
     console.error("admin blockUser error:", err);
@@ -382,6 +385,8 @@ export async function unblockUserAdmin(req, res) {
       .update({ is_blocked: false, blocked_at: null })
       .eq("id", id);
     if (error) throw error;
+    forget(`blocked:${id}`);
+    forget("adminBlockedIds");
     return res.status(200).json({ blocked: false });
   } catch (err) {
     console.error("admin unblockUser error:", err);

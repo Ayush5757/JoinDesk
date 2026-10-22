@@ -263,3 +263,13 @@
   border: 1px solid var(--border);
   box-shadow: 0 2px 10px oklch(0.19 0.03 265 / 0.25);
 }
+
+/* thin loading bar at the top of the screen (see GlobalProgress) */
+@keyframes progress-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}

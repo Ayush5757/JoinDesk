@@ -251,9 +251,11 @@ function Index() {
       setDesks((prev) => [deskFromApi(desk), ...prev]);
       setOffset((prev) => prev + 1);
       setIsCreateModalOpen(false);
+      return true;
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Failed to create desk.";
       toast.error(message);
+      return false;
     }
   };
 

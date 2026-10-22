@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Info, Link as LinkIcon } from "lucide-react";
+import { Info, Link as LinkIcon, Loader2 } from "lucide-react";
 import { Modal } from "./Modal";
 
 export type NewDeskInput = { title: string; subject: string; description: string; meetLink: string };
@@ -14,7 +14,8 @@ export function CreateDeskModal({
 }: {
   open: boolean;
   onClose: () => void;
-  onCreate: (input: NewDeskInput) => void;
+  // return false (or throw) if it failed, so the form keeps what was typed
+  onCreate: (input: NewDeskInput) => Promise<boolean | void> | boolean | void;
 }) {
   const [title, setTitle] = useState("");
   const [subject, setSubject] = useState("");
@@ -22,6 +23,7 @@ export function CreateDeskModal({
   const [description, setDescription] = useState("");
   const [meetLink, setMeetLink] = useState("");
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const reset = () => {
     setTitle("");
@@ -36,14 +38,27 @@ export function CreateDeskModal({
     onClose();
   };
 
-  const submit = () => {
+  const submit = async () => {
+    if (saving) return;
     if (!title.trim()) return setError("Please add a topic title for your desk.");
     if (!subject.trim()) return setError("Tell us the subject or field (e.g. Biology, Physics, Computer Science).");
     if (/^exam preparation:?$/i.test(subject.trim())) return setError('Which exam? For example "Exam preparation: JEE" or just "JEE preparation".');
     if (!/^https?:\/\/.+\..+/i.test(meetLink.trim()))
       return setError("Enter a valid meeting link, e.g. https://meet.google.com/abc-defg-hij or https://zoom.us/j/123456789");
-    onCreate({ title: title.trim(), subject: subject.trim(), description: description.trim(), meetLink: meetLink.trim() });
-    reset();
+    setSaving(true);
+    try {
+      const ok = await onCreate({
+        title: title.trim(),
+        subject: subject.trim(),
+        description: description.trim(),
+        meetLink: meetLink.trim(),
+      });
+      if (ok !== false) reset(); // clear the form only once it really worked
+    } catch {
+      /* the caller shows the error; the form keeps what was typed */
+    } finally {
+      setSaving(false);
+    }
   };
 
   const field =
@@ -149,9 +164,11 @@ export function CreateDeskModal({
         </button>
         <button
           onClick={submit}
-          className="rounded-full bg-brand-gradient px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-soft transition-transform duration-200 hover:scale-[1.03] active:scale-[0.98]"
+          disabled={saving}
+          className="inline-flex items-center gap-2 rounded-full bg-brand-gradient px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-soft transition-transform duration-200 hover:scale-[1.03] active:scale-[0.98] disabled:opacity-70 disabled:hover:scale-100"
         >
-          Launch Desk
+          {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+          {saving ? "Launching…" : "Launch Desk"}
         </button>
       </div>
     </Modal>
