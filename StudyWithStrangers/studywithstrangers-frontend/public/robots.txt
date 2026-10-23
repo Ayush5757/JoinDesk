@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /tracker
+
+Sitemap: https://www.studywithstrangers.com/sitemap.xml
