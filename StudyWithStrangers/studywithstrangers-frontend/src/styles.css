@@ -264,12 +264,12 @@
   box-shadow: 0 2px 10px oklch(0.19 0.03 265 / 0.25);
 }
 
-/* thin loading bar at the top of the screen (see GlobalProgress) */
-@keyframes progress-slide {
+/* thin loading bar at the top of the screen (see GlobalProgress): fills once, never loops */
+@keyframes progress-run {
   0% {
-    transform: translateX(-100%);
+    transform: scaleX(0.04);
   }
   100% {
-    transform: translateX(400%);
+    transform: scaleX(0.9);
   }
 }

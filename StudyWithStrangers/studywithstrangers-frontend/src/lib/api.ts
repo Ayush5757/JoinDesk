@@ -18,7 +18,7 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function request<T>(path: string, options: RequestInit = {}, silent = false): Promise<T> {
   const token = localStorage.getItem(AUTH_TOKEN_KEY);
 
   const init: RequestInit = {
@@ -30,7 +30,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     },
   };
 
-  const res = await trackedFetch(`${API_URL}${path}`, init);
+  const res = await trackedFetch(`${API_URL}${path}`, init, silent);
 
   const isJson = res.headers.get("content-type")?.includes("application/json");
   const body = isJson ? await res.json() : null;
@@ -66,6 +66,8 @@ async function requestForm<T>(path: string, method: string, formData: FormData):
 
 export const api = {
   get: <T>(path: string) => request<T>(path, { method: "GET" }),
+  /** GET that never shows the top loading bar (for background reads). */
+  getQuiet: <T>(path: string) => request<T>(path, { method: "GET" }, true),
   post: <T>(path: string, data?: unknown) =>
     request<T>(
       path,

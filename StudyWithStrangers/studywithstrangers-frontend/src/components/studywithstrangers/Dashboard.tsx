@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { MessageSquareWarning } from "lucide-react";
+import { MessageSquareWarning, PlayCircle } from "lucide-react";
 import { DeskGrid } from "./DeskGrid";
 import { EmptyState } from "./EmptyState";
 import { SpecialDeskRow } from "./SpecialDeskRow";
 import { FeedbackModal } from "./FeedbackModal";
+import { TutorialVideoModal } from "./TutorialVideoModal";
+import { useSiteMedia } from "@/lib/siteMedia";
 import { AnnouncementBanner } from "./AnnouncementBanner";
 import { type Desk } from "@/lib/deskModel";
 
@@ -41,6 +43,9 @@ export function Dashboard({
   announcement,
 }: Props) {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [tutorialOpen, setTutorialOpen] = useState(false);
+  const { media } = useSiteMedia();
+  const tutorialUrl = media?.intro?.url ?? null;
 
   return (
     <section className="relative mx-auto max-w-6xl px-4 py-10">
@@ -55,14 +60,25 @@ export function Dashboard({
               Pick a desk, agree to the desk rules, and get straight to work.
             </p>
           </div>
-          <button
-            onClick={() => setFeedbackOpen(true)}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-card px-3.5 py-2 text-xs font-semibold text-muted-foreground shadow-soft transition-colors hover:bg-muted hover:text-foreground sm:text-sm"
-          >
-            <MessageSquareWarning className="h-4 w-4" />
-            <span className="hidden sm:inline">Suggestions & Complaints</span>
-            <span className="sm:hidden">Feedback</span>
-          </button>
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            {tutorialUrl && (
+              <button
+                onClick={() => setTutorialOpen(true)}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3.5 py-2 text-xs font-semibold text-primary shadow-soft transition-colors hover:bg-primary/15 sm:text-sm"
+              >
+                <PlayCircle className="h-4 w-4" />
+                How it works
+              </button>
+            )}
+            <button
+              onClick={() => setFeedbackOpen(true)}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-card px-3.5 py-2 text-xs font-semibold text-muted-foreground shadow-soft transition-colors hover:bg-muted hover:text-foreground sm:text-sm"
+            >
+              <MessageSquareWarning className="h-4 w-4" />
+              <span className="hidden sm:inline">Suggestions & Complaints</span>
+              <span className="sm:hidden">Feedback</span>
+            </button>
+          </div>
         </div>
 
         <div className="mt-8">
@@ -91,6 +107,9 @@ export function Dashboard({
       </div>
 
       <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
+      {tutorialUrl && (
+        <TutorialVideoModal open={tutorialOpen} url={tutorialUrl} onClose={() => setTutorialOpen(false)} />
+      )}
     </section>
   );
 }

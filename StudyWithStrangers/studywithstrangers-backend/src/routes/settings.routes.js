@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { getAnnouncement } from "../controllers/settings.controller.js";
 import { getScenes } from "../controllers/pomodoro.controller.js";
+import { getPublicMedia } from "../controllers/siteMedia.controller.js";
 
 const router = Router();
 
@@ -9,5 +10,7 @@ const router = Router();
 router.get("/announcement", getAnnouncement);
 // Public: the background videos of the Focus Timer (managed in the admin panel).
 router.get("/pomodoro-scenes", getScenes);
+// Public: the intro video new visitors watch, and the help video in Suggestions & Complaints.
+router.get("/site-media", getPublicMedia);
 
 export default router;

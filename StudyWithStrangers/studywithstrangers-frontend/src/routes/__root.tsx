@@ -14,6 +14,7 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "../components/ui/sonner";
 import { SigningInOverlay } from "../components/studywithstrangers/SigningInOverlay";
 import { GlobalProgress } from "../components/studywithstrangers/GlobalProgress";
+import { IntroGate } from "../components/studywithstrangers/IntroGate";
 
 function NotFoundComponent() {
   return (
@@ -194,6 +195,7 @@ function RootComponent() {
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
       <GlobalProgress />
+      <IntroGate />
       <SigningInOverlay />
       <Toaster />
     </QueryClientProvider>

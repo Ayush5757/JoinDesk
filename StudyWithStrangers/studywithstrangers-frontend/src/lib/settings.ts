@@ -3,7 +3,7 @@ import { adminApi } from "@/lib/adminApi";
 
 /** Public — anyone logged in can read the current site-wide notice. */
 export async function getAnnouncement() {
-  const { message } = await api.get<{ message: string | null }>("/api/announcement");
+  const { message } = await api.getQuiet<{ message: string | null }>("/api/announcement");
   return message;
 }
 

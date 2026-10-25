@@ -45,6 +45,12 @@ import {
 } from "../controllers/adminRandom.controller.js";
 
 import { getScenes, saveScenes } from "../controllers/pomodoro.controller.js";
+import {
+  adminGetMedia,
+  adminCreateUploadUrl,
+  adminSaveMedia,
+  adminDeleteMedia,
+} from "../controllers/siteMedia.controller.js";
 
 const router = Router();
 
@@ -106,5 +112,11 @@ router.patch("/feedback/:id/status", requireAdmin, updateFeedbackStatus);
 // Site-wide announcement banner (Admin Panel "Notice" tab). Reading it is
 // public — see GET /api/announcement in settings.routes.js.
 router.patch("/announcement", requireAdmin, setAnnouncement);
+
+// Intro / help videos (uploaded straight to storage from the browser, then saved here).
+router.get("/media", requireAdmin, adminGetMedia);
+router.post("/media/upload-url", requireAdmin, adminCreateUploadUrl);
+router.put("/media/:slot", requireAdmin, adminSaveMedia);
+router.delete("/media/:slot", requireAdmin, adminDeleteMedia);
 
 export default router;

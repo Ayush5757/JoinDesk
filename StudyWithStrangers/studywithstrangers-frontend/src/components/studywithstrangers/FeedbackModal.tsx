@@ -15,15 +15,15 @@ import { Modal } from "./Modal";
 import { submitFeedback, buildWhatsAppLink, type FeedbackType } from "@/lib/feedback";
 import { searchDesksForPicker } from "@/lib/desks";
 import { ApiError } from "@/lib/api";
-
-// Point this at your own hosted video (mp4 URL, or swap the <video> tag
-// below for a YouTube/Vimeo <iframe> if that's easier for you). Left empty
-// by default so the popup still works and looks right before you add one.
-const TUTORIAL_VIDEO_URL = "";
+import { useSiteMedia } from "@/lib/siteMedia";
+import { parseYouTubeId, youTubeEmbedUrl } from "@/lib/video";
 
 type DeskOption = { id: string; title: string };
 
 export function FeedbackModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  // The help video is uploaded from Admin Panel -> Videos. Watching it is optional.
+  const { media } = useSiteMedia();
+  const helpVideoUrl = media?.feedback?.url ?? "";
   const videoWrapperRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -215,25 +215,32 @@ export function FeedbackModal({ open, onClose }: { open: boolean; onClose: () =>
         </p>
       </div> */}
 
-      <div
-        ref={videoWrapperRef}
-        className="relative mt-4 aspect-video w-full overflow-hidden rounded-2xl bg-black"
-      >
-        {TUTORIAL_VIDEO_URL ? (
-          <video src={TUTORIAL_VIDEO_URL} controls className="h-full w-full object-contain" />
-        ) : (
-          <div className="grid h-full w-full place-items-center text-xs text-white/50">
-            Video coming soon
-          </div>
-        )}
-        <button
-          onClick={toggleFullscreen}
-          title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-          className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-black/60 text-white backdrop-blur-sm transition-colors hover:bg-black/80"
+      {helpVideoUrl && (
+        <div
+          ref={videoWrapperRef}
+          className="relative mt-4 aspect-video w-full overflow-hidden rounded-2xl bg-black"
         >
-          {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
-        </button>
-      </div>
+          {parseYouTubeId(helpVideoUrl) ? (
+            <iframe
+              src={youTubeEmbedUrl(parseYouTubeId(helpVideoUrl)!)}
+              title="Help video"
+              className="h-full w-full"
+              allow="encrypted-media; picture-in-picture; fullscreen"
+              allowFullScreen
+              loading="lazy"
+            />
+          ) : (
+            <video src={helpVideoUrl} controls playsInline preload="metadata" className="h-full w-full object-contain" />
+          )}
+          <button
+            onClick={toggleFullscreen}
+            title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+            className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-black/60 text-white backdrop-blur-sm transition-colors hover:bg-black/80"
+          >
+            {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+          </button>
+        </div>
+      )}
 
       <p className="mt-4 text-xs font-semibold text-muted-foreground">
         Or log it here on the dashboard instead:

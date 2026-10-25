@@ -2,6 +2,9 @@ import { api, ApiError, AUTH_TOKEN_KEY } from "./api";
 
 export { AUTH_TOKEN_KEY };
 
+/** Fired on window right after a sign-in or sign-out, so parts of the app outside the page can react. */
+export const AUTH_CHANGED_EVENT = "sws-auth-changed";
+
 export type AppUser = {
   id: string;
   name: string;
@@ -160,6 +163,7 @@ export async function loginWithGoogle(): Promise<AppUser> {
           );
           localStorage.setItem(AUTH_TOKEN_KEY, token);
           cacheUser(user);
+          window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
           finish(() => resolve(user));
         } catch (err) {
           finish(() => reject(isBlockedApiError(err) ? new BlockedError() : err));
@@ -187,6 +191,7 @@ export async function loginWithGoogle(): Promise<AppUser> {
 export function logout() {
   localStorage.removeItem(AUTH_TOKEN_KEY);
   cacheUser(null);
+  window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
 }
 
 /**

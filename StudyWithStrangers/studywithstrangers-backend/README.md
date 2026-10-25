@@ -359,3 +359,22 @@ profile and tap Reuse"). If several desks ended together they get a single combi
    `Authorization: Bearer <CRON_SECRET>`.
 4. Only people who allowed notifications in their browser receive it (same as the follower notifications), and
    `FRONTEND_URL` should be `https://www.studywithstrangers.com` in production so the link opens their profile.
+
+## 11. Intro video and help video (Admin Panel -> Videos)
+
+- **Welcome video**: every NEW account must watch it fully, with sound, right after signing in. "Watched" is saved on
+  the account (`users.intro_seen_version`), so it never repeats on another phone or laptop. Run the last block of
+  `schema.sql` once: it adds the column and marks everyone who already has an account as having seen version 1.
+  Replacing the video does not bring it back for anyone. Tick "make everyone watch it again" when you upload to
+  raise the version, and every user sees it once more.
+  Visitors who are not signed in are not interrupted (they cannot use the app yet anyway).
+- **Help video** in "Suggestions & Complaints": optional to watch; the box is hidden when no video is set.
+- Videos are uploaded **straight from the admin's browser to Supabase Storage** (so Vercel's request-size limit does not
+  apply). The public bucket `site-media` is created automatically on the first upload. No SQL is needed: it reuses the
+  existing `site_settings` table.
+- **Best for many viewers: a YouTube link** (upload to YouTube as *Unlisted*, paste the link in the panel). It is free
+  with no bandwidth limit, and the site still forces the welcome video to be watched to the end.
+- Or use an MP4 file. Use MP4 (H.264). Supabase's free plan caps a file at 50 MB (`MEDIA_MAX_MB`, default 50). Compress a longer video
+  (e.g. 720p) with HandBrake or similar before uploading.
+- Public read: `GET /api/site-media`. Admin: `GET /api/admin/media`, `POST /api/admin/media/upload-url`,
+  `PUT /api/admin/media/:slot`, `DELETE /api/admin/media/:slot` (slot = `intro` or `feedback`).

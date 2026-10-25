@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "../config/supabase.js";
 import { forget } from "../utils/cache.js";
 import { uploadAvatar } from "../services/storage.js";
+import { getMedia } from "../services/siteMedia.js";
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024; // 5MB
 const ALLOWED_AVATAR_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
@@ -339,5 +340,49 @@ export async function getMyFollowing(req, res) {
   } catch (err) {
     console.error("getMyFollowing error:", err);
     return res.status(500).json({ error: "Failed to load who you follow" });
+  }
+}
+
+
+/**
+ * GET /api/users/me/intro
+ * Which welcome-video version this account has finished. { seenVersion: null } means "unknown" (for example the
+ * column hasn't been added yet): the site then simply doesn't show the video, it never blocks anyone.
+ */
+export async function getIntroStatus(req, res) {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("users")
+      .select("intro_seen_version")
+      .eq("id", req.user.id)
+      .maybeSingle();
+    if (error) throw error;
+    return res.status(200).json({ seenVersion: data ? Number(data.intro_seen_version) || 0 : null });
+  } catch (err) {
+    console.error("getIntroStatus error:", err);
+    return res.status(200).json({ seenVersion: null });
+  }
+}
+
+/**
+ * POST /api/users/me/intro-seen
+ * Records that this account finished the welcome video. The version is taken from the server (the video that is
+ * live right now), never from the request, so it can't be set to a future number.
+ */
+export async function markIntroSeen(req, res) {
+  try {
+    const { intro } = await getMedia();
+    const version = intro?.version || 0;
+    if (!version) return res.status(200).json({ seenVersion: 0 });
+
+    const { error } = await supabaseAdmin
+      .from("users")
+      .update({ intro_seen_version: version })
+      .eq("id", req.user.id);
+    if (error) throw error;
+    return res.status(200).json({ seenVersion: version });
+  } catch (err) {
+    console.error("markIntroSeen error:", err);
+    return res.status(500).json({ error: "Couldn't save that" });
   }
 }

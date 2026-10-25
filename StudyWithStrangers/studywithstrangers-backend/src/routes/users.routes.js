@@ -13,6 +13,8 @@ import {
   followUser,
   unfollowUser,
   getMyFollowing,
+  getIntroStatus,
+  markIntroSeen,
 } from "../controllers/users.controller.js";
 import { getUserDesks } from "../controllers/desks.controller.js";
 
@@ -25,6 +27,8 @@ const router = Router();
 router.get("/me/blocks", requireAuth, getMyBlocks);
 router.get("/me/special", requireAuth, getMySpecial);
 router.get("/me/following", requireAuth, getMyFollowing);
+router.get("/me/intro", requireAuth, getIntroStatus);
+router.post("/me/intro-seen", requireAuth, markIntroSeen);
 router.patch("/me/avatar", requireAuth, upload.single("avatar"), updateAvatar);
 
 router.get("/:id", optionalAuth, getPublicProfile);

@@ -546,3 +546,22 @@ update public.desks set expiry_notified_at = now()
 -- Special desks created under the old brand name show the new one.
 update public.desks set creator_name = 'StudyWithStrangers'
   where is_special = true and creator_name = 'StudyWithStrangers';
+
+
+-- =========================
+-- Feature update: welcome video is remembered per ACCOUNT (not per browser)
+-- =========================
+-- intro_seen_version = the welcome-video version this user has finished. 0 = never.
+-- Run once. The DO block only runs the "existing users" step the FIRST time the column is added, so
+-- re-running this file later can never mark new users as "already watched".
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'users' and column_name = 'intro_seen_version'
+  ) then
+    alter table public.users add column intro_seen_version integer not null default 0;
+    -- Everyone who already has an account is not a "first-time" user: do not interrupt them with version 1.
+    update public.users set intro_seen_version = 1;
+  end if;
+end $$;

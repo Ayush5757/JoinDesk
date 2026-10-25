@@ -16,8 +16,16 @@ export function subscribePending(fn: () => void) {
 }
 export const getPending = () => pending;
 
-/** Same as fetch, but visible to the progress bar. */
-export async function trackedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+/**
+ * Same as fetch, but visible to the progress bar. Pass `silent` for background work (settings, polling)
+ * that should never make the page look like it is loading.
+ */
+export async function trackedFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+  silent = false,
+): Promise<Response> {
+  if (silent) return fetch(input, init);
   pending += 1;
   notify();
   try {
