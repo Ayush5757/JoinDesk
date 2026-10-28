@@ -134,6 +134,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
     scripts: [
       {
+        // Runs before anything is painted: if this browser holds a sign-in, the landing page stays hidden
+        // (see .landing-only in styles.css) so signed-in people never see it flash by while the app loads.
+        children:
+          "try{if(localStorage.getItem('auth_token'))document.documentElement.classList.add('has-session')}catch(e){}",
+      },
+      {
         type: "application/ld+json",
         children: JSON.stringify({
           "@context": "https://schema.org",
@@ -175,7 +181,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>

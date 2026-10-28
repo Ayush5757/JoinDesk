@@ -311,6 +311,13 @@ function RandomPage() {
     return () => clearTimeout(t);
   }, [call, next]);
 
+  // the other person left: move on to someone new straight away, no tap needed
+  useEffect(() => {
+    if (call !== "partner-left") return;
+    const t = setTimeout(() => void next(), 600);
+    return () => clearTimeout(t);
+  }, [call, next]);
+
   // the little notice fades by itself
   useEffect(() => {
     if (!notice || call === "failed") return;
@@ -499,13 +506,7 @@ function RandomPage() {
             {call === "partner-left" ? (
               <div>
                 <p className="text-2xl font-semibold tracking-tight">They left</p>
-                <p className="mt-1 text-sm text-white/60">No problem. Someone new is one tap away.</p>
-                <button onClick={() => void next()} className="mt-6 rounded-full bg-white px-8 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-90">
-                  Next
-                </button>
-                <button onClick={() => setReporting(true)} className="mt-3 block w-full text-xs font-medium text-white/50 hover:text-white">
-                  Report them
-                </button>
+                <p className="mt-1 text-sm text-white/60">Finding someone new…</p>
               </div>
             ) : gaveUp ? (
               <div>

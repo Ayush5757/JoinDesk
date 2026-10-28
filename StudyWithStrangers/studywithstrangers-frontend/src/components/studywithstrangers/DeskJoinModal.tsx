@@ -148,8 +148,8 @@ export function DeskJoinModal({
             <p className="text-xs font-semibold text-foreground">A quiet room, at your own pace</p>
             <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
               Join and get on with your own work. People drop in slowly, whenever the topic fits them, so don't wait for
-              anyone to arrive. Settle in, put your head down, and let the room fill up around you. It's a chill study
-              video, not a meeting.
+              anyone to arrive. Settle in and let the room fill up around you. It's a chill study video, not a
+              meeting.
             </p>
           </div>
 

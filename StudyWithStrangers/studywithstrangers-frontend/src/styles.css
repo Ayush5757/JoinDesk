@@ -273,3 +273,14 @@
     transform: scaleX(0.9);
   }
 }
+
+/* Signed-in people never see the landing page: it is hidden from the very first paint (see __root.tsx). */
+.session-splash {
+  display: none;
+}
+.has-session .landing-only {
+  display: none !important;
+}
+.has-session .session-splash {
+  display: block;
+}

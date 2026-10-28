@@ -299,7 +299,9 @@ function Index() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <>
+    {/* Signed-in people get the placeholder below instead of this page until the app has loaded. */}
+    <div className={"min-h-screen bg-background text-foreground" + (isLoggedIn ? "" : " landing-only")}>
       <Navbar
         isLoggedIn={isLoggedIn}
         user={user}
@@ -367,5 +369,11 @@ function Index() {
         onClose={() => setViewJoinersDeskId(null)}
       />
     </div>
+    {!isLoggedIn && (
+      <div className="session-splash">
+        <PageLoader />
+      </div>
+    )}
+    </>
   );
 }

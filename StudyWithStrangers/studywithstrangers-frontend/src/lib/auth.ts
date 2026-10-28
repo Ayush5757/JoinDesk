@@ -2,6 +2,11 @@ import { api, ApiError, AUTH_TOKEN_KEY } from "./api";
 
 export { AUTH_TOKEN_KEY };
 
+/** Mirrors "is someone signed in" onto <html> so the landing page can be hidden before React loads. */
+function setSessionFlag(on: boolean) {
+  if (typeof document !== "undefined") document.documentElement.classList.toggle("has-session", on);
+}
+
 /** Fired on window right after a sign-in or sign-out, so parts of the app outside the page can react. */
 export const AUTH_CHANGED_EVENT = "sws-auth-changed";
 
@@ -163,6 +168,7 @@ export async function loginWithGoogle(): Promise<AppUser> {
           );
           localStorage.setItem(AUTH_TOKEN_KEY, token);
           cacheUser(user);
+          setSessionFlag(true);
           window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
           finish(() => resolve(user));
         } catch (err) {
@@ -191,6 +197,7 @@ export async function loginWithGoogle(): Promise<AppUser> {
 export function logout() {
   localStorage.removeItem(AUTH_TOKEN_KEY);
   cacheUser(null);
+  setSessionFlag(false);
   window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
 }
 
@@ -202,11 +209,15 @@ export function logout() {
  */
 export async function restoreSession(): Promise<AppUser | null> {
   const token = localStorage.getItem(AUTH_TOKEN_KEY);
-  if (!token) return null;
+  if (!token) {
+    setSessionFlag(false);
+    return null;
+  }
 
   try {
     const { user } = await api.get<{ user: AppUser }>("/api/auth/me");
     cacheUser(user);
+    setSessionFlag(true);
     return user;
   } catch (err) {
     if (isBlockedApiError(err)) throw new BlockedError();
@@ -215,6 +226,7 @@ export async function restoreSession(): Promise<AppUser | null> {
     if (err instanceof ApiError && err.status === 401) {
       localStorage.removeItem(AUTH_TOKEN_KEY);
       cacheUser(null);
+      setSessionFlag(false);
       return null;
     }
     return readCachedUser();
