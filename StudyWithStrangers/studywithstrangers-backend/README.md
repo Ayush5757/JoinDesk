@@ -378,3 +378,15 @@ profile and tap Reuse"). If several desks ended together they get a single combi
   (e.g. 720p) with HandBrake or similar before uploading.
 - Public read: `GET /api/site-media`. Admin: `GET /api/admin/media`, `POST /api/admin/media/upload-url`,
   `PUT /api/admin/media/:slot`, `DELETE /api/admin/media/:slot` (slot = `intro` or `feedback`).
+
+## 12. Popular study times on Special desks (Admin Panel -> Timings)
+
+When someone opens the join window of a **Special desk** they see, in bold, "Open 24/7. Join any time." and the times
+most students join (for example "6:00 AM – 9:00 AM"). Normal desks never show this, and if no timings are added
+nothing extra is shown.
+
+- Add as many time ranges as you like (max 12 per list). A "common" list applies to every Special desk; you can also
+  give one desk its own list, which replaces the common one for that desk.
+- Enter times in **India time (IST)**. Each visitor sees them converted to their own local time.
+- No SQL needed: stored in the existing `site_settings` table (key `special_timings`).
+- Public read: `GET /api/special-timings`. Admin: `GET` and `PUT /api/admin/special-timings`.

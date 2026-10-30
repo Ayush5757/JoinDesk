@@ -51,6 +51,7 @@ import {
   adminSaveMedia,
   adminDeleteMedia,
 } from "../controllers/siteMedia.controller.js";
+import { adminGetTimings, adminSaveTimings } from "../controllers/specialTimings.controller.js";
 
 const router = Router();
 
@@ -118,5 +119,9 @@ router.get("/media", requireAdmin, adminGetMedia);
 router.post("/media/upload-url", requireAdmin, adminCreateUploadUrl);
 router.put("/media/:slot", requireAdmin, adminSaveMedia);
 router.delete("/media/:slot", requireAdmin, adminDeleteMedia);
+
+// "Most popular study times" shown on Special desks.
+router.get("/special-timings", requireAdmin, adminGetTimings);
+router.put("/special-timings", requireAdmin, adminSaveTimings);
 
 export default router;

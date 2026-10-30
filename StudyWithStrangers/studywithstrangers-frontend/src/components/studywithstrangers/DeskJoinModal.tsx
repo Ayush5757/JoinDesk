@@ -5,6 +5,7 @@ import { Modal } from "./Modal";
 import { relativeTime, timeLeftLabel, type Desk } from "@/lib/deskModel";
 import { recordDeskJoin } from "@/lib/users";
 import { ApiError } from "@/lib/api";
+import { formatRange, timingsForDesk, useSpecialTimings } from "@/lib/specialTimings";
 import { formatDate, paymentInfoFromError, type PaymentRequiredInfo } from "@/lib/billing";
 
 export function DeskJoinModal({
@@ -18,6 +19,8 @@ export function DeskJoinModal({
 }) {
   const [agreed, setAgreed] = useState(false);
   const [joining, setJoining] = useState(false);
+  // "Most popular study times": only ever shown for Special desks, and only when the admin has added some.
+  const allTimings = useSpecialTimings();
   // Set when the backend answers 402: this person has no free access, no
   // active paid month and no trial left — show the payment panel.
   const [paywall, setPaywall] = useState<PaymentRequiredInfo | null>(null);
@@ -31,6 +34,8 @@ export function DeskJoinModal({
   }, [open, desk?.id]);
 
   if (!desk) return null;
+
+  const popularTimes = desk.isSpecial ? timingsForDesk(allTimings, desk.id) : [];
 
   const join = async () => {
     if (joining) return;
@@ -144,6 +149,28 @@ export function DeskJoinModal({
         </div>
       ) : (
         <>
+          {desk.isSpecial && popularTimes.length > 0 && (
+            <div className="mt-5 rounded-2xl border border-special/30 bg-special-soft p-4">
+              <p className="text-base font-extrabold tracking-tight text-foreground">
+                Open 24/7. Join any time.
+              </p>
+              <p className="mt-1 text-xs font-medium text-muted-foreground">
+                Most students join during these times:
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {popularTimes.map((r) => (
+                  <span
+                    key={`${r.start}-${r.end}`}
+                    className="rounded-full bg-card px-4 py-2 text-base font-extrabold tracking-tight text-special shadow-soft sm:text-lg"
+                  >
+                    {formatRange(r)}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-2.5 text-[10px] text-muted-foreground">Shown in your local time.</p>
+            </div>
+          )}
+
           <div className="mt-5 rounded-2xl bg-primary/5 p-4">
             <p className="text-xs font-semibold text-foreground">A quiet room, at your own pace</p>
             <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">

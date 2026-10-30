@@ -43,6 +43,7 @@ import { AdminTrackerTab } from "@/components/studywithstrangers/AdminTrackerTab
 import { AdminRandomTab } from "@/components/studywithstrangers/AdminRandomTab";
 import { AdminPomodoroTab } from "@/components/studywithstrangers/AdminPomodoroTab";
 import { AdminVideosTab } from "@/components/studywithstrangers/AdminVideosTab";
+import { AdminTimingsTab } from "@/components/studywithstrangers/AdminTimingsTab";
 import { AdminUserDetailModal } from "@/components/studywithstrangers/AdminUserDetailModal";
 import { AccessBadge, fmtDay, saveBlob, timeAgo } from "@/components/studywithstrangers/adminShared";
 import { loginWithGoogle, logout, readCachedUser, restoreSession, BlockedError, type AppUser } from "@/lib/auth";
@@ -202,7 +203,7 @@ function AdminGate() {
 
 function AdminPanel({ onLock }: { onLock: () => void }) {
   const [tab, setTab] = useState<
-    "desks" | "analytics" | "access" | "users" | "feedback" | "notice" | "tracker" | "random" | "focus" | "videos"
+    "desks" | "analytics" | "access" | "users" | "feedback" | "notice" | "tracker" | "random" | "focus" | "videos" | "timings"
   >("desks");
 
   return (
@@ -333,6 +334,17 @@ function AdminPanel({ onLock }: { onLock: () => void }) {
         >
           <Film className="h-4 w-4" /> Videos
         </button>
+        <button
+          onClick={() => setTab("timings")}
+          className={
+            "inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-colors " +
+            (tab === "timings"
+              ? "bg-card shadow-soft"
+              : "text-muted-foreground hover:text-foreground")
+          }
+        >
+          <Clock className="h-4 w-4" /> Timings
+        </button>
       </div>
 
       <div className="mt-6">
@@ -350,6 +362,8 @@ function AdminPanel({ onLock }: { onLock: () => void }) {
           <AdminTrackerTab />
         ) : tab === "random" ? (
           <AdminRandomTab />
+        ) : tab === "timings" ? (
+          <AdminTimingsTab />
         ) : tab === "videos" ? (
           <AdminVideosTab />
         ) : tab === "focus" ? (
