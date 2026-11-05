@@ -151,17 +151,20 @@ export function DeskJoinModal({
         <>
           {desk.isSpecial && popularTimes.length > 0 && (
             <div className="mt-5 rounded-2xl border border-special/30 bg-special-soft p-4">
-              <p className="text-base font-extrabold tracking-tight text-foreground">
-                Open 24/7. Join any time.
+              <p className="text-sm font-bold tracking-tight text-foreground">
+                Open 24/7. Join whenever you like 🌿
               </p>
-              <p className="mt-1 text-xs font-medium text-muted-foreground">
-                Most students join during these times:
+              <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                Most students come online during the times below, so if you'd like to study
+                alongside others, that's a lovely time to hop in. But please don't feel limited
+                by them. If another time suits you better, you're always welcome then too. The
+                goal is simply to get your studying done in a calm, friendly environment.
               </p>
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="mt-3 flex flex-wrap gap-1.5">
                 {popularTimes.map((r) => (
                   <span
                     key={`${r.start}-${r.end}`}
-                    className="rounded-full bg-card px-4 py-2 text-base font-extrabold tracking-tight text-special shadow-soft sm:text-lg"
+                    className="rounded-full bg-card px-3 py-1 text-xs font-semibold tracking-tight text-special shadow-soft sm:text-sm"
                   >
                     {formatRange(r)}
                   </span>
